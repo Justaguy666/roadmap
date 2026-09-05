@@ -19,11 +19,14 @@ class RoadmapModel(Base):
         String(36), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    objective: Mapped[str] = mapped_column(Text, nullable=False, default="")
     total_estimated_hours: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_weeks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     assumptions_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     skipped_skill_names_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     research_run_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
+    quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 

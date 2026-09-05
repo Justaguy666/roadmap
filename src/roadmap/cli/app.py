@@ -22,7 +22,9 @@ import typer
 
 from roadmap.cli.commands import (
     analyze_cmd,
+    evidence_cmd,
     generate_cmd,
+    graph_cmd,
     init_cmd,
     profile_cmd,
     progress_cmd,
@@ -50,14 +52,16 @@ app.command(name="analyze", help="Analyze your career goal to infer target compe
 app.command(name="generate", help="Generate a personalized, validated learning roadmap using AI.")(generate_cmd.generate)
 app.command(name="show", help="Display the current roadmap overview or phase curriculum.")(show_cmd.show)
 app.command(name="progress", help="Show overall learning progress across all phases.")(progress_cmd.progress)
+app.command(name="why", help="Explain why a skill is included, prioritized, or postponed.")(stub_commands.why)
 
 # ── Command groups & functional subcommands ──────────────────────────────────
 app.add_typer(profile_cmd.app, name="profile", help="Manage your user profile (show, edit, reset).")
 app.add_typer(research_cmd.research_app, name="research", help="Research market requirements and learning resources.")
 app.add_typer(sources_cmd.sources_app, name="sources", help="List all research sources and citations.")
+app.add_typer(graph_cmd.graph_app, name="graph", help="Visualize and validate the skill prerequisite dependency DAG.")
+app.add_typer(evidence_cmd.evidence_app, name="evidence", help="Inspect aggregated research evidence for a skill.")
 
 # ── Stub commands (MVP-5+) ────────────────────────────────────────────────────
 app.command(name="complete", help="Mark a skill as complete. [MVP-5]")(stub_commands.complete)
 app.command(name="update", help="Replan roadmap based on current progress. [MVP-5]")(stub_commands.update)
-app.command(name="why", help="Explain why a skill is included or postponed. [MVP-5]")(stub_commands.why)
 app.command(name="export", help="Export the roadmap as JSON or Markdown. [MVP-6]")(stub_commands.export)

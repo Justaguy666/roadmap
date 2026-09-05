@@ -7,6 +7,7 @@ to a concrete source (job posting, article, documentation, etc.).
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -121,9 +122,9 @@ class Recommendation(BaseModel):
         max_length=2000,
         description="Human-readable explanation of the decision",
     )
-    decision_factors: list[str] = Field(
+    decision_factors: dict[str, Any] | list[str] = Field(
         default_factory=list,
-        description="Key factors that drove this decision",
+        description="Key factors or factor scores that drove this decision",
     )
     evidence_ids: list[str] = Field(
         default_factory=list,

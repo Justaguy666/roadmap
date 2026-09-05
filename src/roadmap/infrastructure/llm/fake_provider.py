@@ -329,6 +329,17 @@ class FakeLLMProvider(LLMProvider):
                 ],
             )
 
+        from roadmap.agents.schemas.evaluator import RoadmapEvaluationResult
+
+        if response_model is RoadmapEvaluationResult or issubclass(response_model, RoadmapEvaluationResult):
+            return RoadmapEvaluationResult(  # type: ignore[return-value]
+                verdict="PASS",
+                score=88.5,
+                issues=[],
+                warnings=[],
+                recommendations=["Focus on portfolio deliverables to demonstrate proficiency."],
+            )
+
         # Generic fallback if custom model passed
         try:
             return response_model()  # type: ignore[call-arg]

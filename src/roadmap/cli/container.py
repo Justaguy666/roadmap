@@ -161,11 +161,20 @@ def get_generator_context(
     None,
 ]:
     """Yield use cases and repositories required for goal analysis & roadmap generation."""
+    from roadmap.storage.repositories.research_repository import (
+        SqliteEvidenceRepository,
+        SqliteRecommendationRepository,
+        SqliteSourceRepository,
+    )
+
     provider = llm_provider or get_llm_provider()
     with get_session() as session:
         profile_repo = SqliteProfileRepository(session)
         roadmap_repo = SqliteRoadmapRepository(session)
         skill_repo = SqliteSkillRepository(session)
+        evidence_repo = SqliteEvidenceRepository(session)
+        source_repo = SqliteSourceRepository(session)
+        recommendation_repo = SqliteRecommendationRepository(session)
 
         analyze_uc = AnalyzeGoalUseCase(llm_provider=provider)
         generate_uc = GenerateRoadmapUseCase(
@@ -173,6 +182,9 @@ def get_generator_context(
             profile_repo=profile_repo,
             roadmap_repo=roadmap_repo,
             skill_repo=skill_repo,
+            evidence_repo=evidence_repo,
+            source_repo=source_repo,
+            recommendation_repo=recommendation_repo,
             max_retries=settings.llm_max_retries,
         )
 

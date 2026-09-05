@@ -60,51 +60,27 @@ def generate(
                     raise typer.Exit(0)
 
             console.print()
-            console.print("  [bold]Analyzing goal...[/bold]")
-            with spin("Inferring core competencies and required skills..."):
-                goal_analysis = analyze_uc.execute(profile)
-            print_success(f"Goal analyzed: resolved role as [bold]{goal_analysis.target_role}[/bold].")
-
-            console.print()
-            console.print("  [bold]Calculating skill gaps...[/bold]")
-            skill_gaps = generate_uc._compute_skill_gaps(profile, goal_analysis)
-            print_success(
-                f"Gaps calculated: {skill_gaps.total_gaps} actionable skill gaps identified "
-                f"({skill_gaps.critical_gaps_count} critical)."
-            )
-
-            console.print()
-            console.print("  [bold]Generating roadmap...[/bold]")
-            with spin("Synthesizing phases, projects, and milestone criteria..."):
-                draft_result, roadmap, val_result = generate_uc._generate_and_validate(
+            console.print("  [bold]Generating evidence-backed roadmap...[/bold]")
+            with spin("Synthesizing market research, dependency graph, and curriculum..."):
+                roadmap, goal_analysis, skill_gaps, val_result = generate_uc.execute(
                     profile=profile,
-                    goal_analysis=goal_analysis,
-                    skill_gaps=skill_gaps,
+                    existing_goal_analysis=None,
+                    progress_callback=lambda msg: console.print(f"    [dim]• {msg}[/dim]"),
                 )
-            print_success("Roadmap drafted.")
+            print_success(f"Roadmap generated (v{roadmap.version}) with quality score {roadmap.quality_score:.1f}/100.")
 
             console.print()
-            console.print("  [bold]Validating roadmap...[/bold]")
-            if not val_result.is_valid:
-                errors = [e.message for e in val_result.errors]
-                print_error(f"Roadmap failed deterministic validation: {'; '.join(errors)}")
-                raise RoadmapValidationError(errors)
-            print_success("Validation passed (zero structural defects).")
-
-            console.print()
-            console.print("  [bold]Saving roadmap...[/bold]")
-            roadmap_repo.save(roadmap)
-            print_success("Roadmap saved.")
-
-            console.print()
-            print_header(f"✓ Roadmap generated successfully: {roadmap.title}")
+            print_header(f"✓ Roadmap generated successfully: {roadmap.title} (v{roadmap.version})")
             console.print(
                 f"  Phases: [bold]{len(roadmap.phases)}[/bold]  |  "
                 f"Skills: [bold]{len(roadmap.all_skills)}[/bold]  |  "
+                f"Quality: [bold cyan]{roadmap.quality_score:.1f}/100[/bold cyan]  |  "
                 f"Estimated Duration: [bold]{roadmap.total_weeks} weeks[/bold] (~{roadmap.total_estimated_hours:.0f} hours)"
             )
             console.print()
             print_info("Run [bold]roadmap show[/bold] to explore your complete curriculum.")
+            print_info("Run [bold]roadmap graph[/bold] to inspect the skill dependency DAG.")
+            print_info("Run [bold]roadmap why <skill>[/bold] to inspect decision rationale.")
             console.print()
 
     except MissingAPIKeyError as e:

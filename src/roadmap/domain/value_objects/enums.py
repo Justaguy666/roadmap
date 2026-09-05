@@ -146,6 +146,7 @@ class SourceType(str, Enum):
     GITHUB = "github"
     TECHNICAL_ARTICLE = "technical_article"
     ARTICLE = "article"  # alias
+    BLOG_POST = "blog_post"  # alias
     SURVEY = "survey"
     PAPER = "paper"
     UNIVERSITY = "university"  # alias
@@ -156,5 +157,8 @@ class DependencyType(str, Enum):
     """Type of prerequisite relationship between skills."""
 
     REQUIRES = "requires"       # Hard prerequisite — must be done first
+    PREREQUISITE = "prerequisite"  # Alias for hard prerequisite
     ENHANCES = "enhances"       # Soft prerequisite — recommended first
+    COMPLEMENTARY = "complementary"  # Complementary skill relationship
+    SPECIALIZATION = "specialization"  # Advanced elective or niche specialization
     OPTIONAL = "optional"       # Nice to have before

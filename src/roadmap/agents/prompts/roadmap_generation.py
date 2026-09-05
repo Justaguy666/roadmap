@@ -8,6 +8,8 @@ incorporating skill gaps, user time constraints, projects, and milestones.
 
 from __future__ import annotations
 
+from typing import Any
+
 from roadmap.agents.schemas.goal_analysis import GoalAnalysisResult
 from roadmap.agents.schemas.skill_gap import SkillGapAnalysisResult
 from roadmap.domain.entities.user_profile import UserProfile
@@ -81,3 +83,68 @@ def build_roadmap_generation_user_prompt(
     ])
 
     return "\n".join(lines)
+
+
+def build_evidence_grounded_roadmap_prompt(
+    profile: UserProfile,
+    goal_analysis: GoalAnalysisResult,
+    skill_gaps: SkillGapAnalysisResult,
+    evidence_summaries: list[dict[str, Any]],
+    skill_graph_ordering: list[str],
+) -> str:
+    """Construct evidence-grounded roadmap generation prompt."""
+    base_prompt = build_roadmap_generation_user_prompt(profile, goal_analysis, skill_gaps)
+
+    graph_txt = (
+        "VALIDATED SKILL TOPOLOGICAL PRE-ORDERING (Prerequisites strictly precede dependent skills):\n"
+        + " -> ".join(skill_graph_ordering)
+        if skill_graph_ordering
+        else "No strict pre-ordering graph provided."
+    )
+
+    import json
+    evidence_txt = json.dumps(evidence_summaries, indent=2) if evidence_summaries else "No external research evidence."
+
+    return f"""{base_prompt}
+
+{graph_txt}
+
+EVIDENCE & MARKET RESEARCH GROUNDING:
+For each skill, you are provided with real market frequency, source diversity, and evidence IDs:
+{evidence_txt}
+
+INSTRUCTIONS:
+1. Ground skills in the provided evidence. Whenever you include a skill that appears in the evidence summary, attach its corresponding 'evidence_ids'.
+2. Respect the Topological Pre-Ordering: Never place a dependent skill in an earlier phase than its prerequisite.
+3. Keep the total duration within the user's available time and target deadline.
+"""
+
+
+def build_roadmap_revision_prompt(
+    original_roadmap_json: dict[str, Any],
+    evaluator_issues: list[dict[str, Any]],
+    deterministic_errors: list[str],
+    recommendations: list[str],
+) -> str:
+    """Construct targeted repair prompt for roadmap revision loop."""
+    import json
+    return f"""A candidate roadmap was generated, but failed verification during review.
+
+IDENTIFIED DETERMINISTIC ERRORS:
+{json.dumps(deterministic_errors, indent=2) if deterministic_errors else 'None'}
+
+EVALUATOR CRITIQUE ISSUES:
+{json.dumps(evaluator_issues, indent=2)}
+
+ACTIONABLE RECOMMENDATIONS:
+{json.dumps(recommendations, indent=2)}
+
+ORIGINAL CANDIDATE ROADMAP:
+{json.dumps(original_roadmap_json, indent=2)}
+
+REVISION RULES:
+1. Revise ONLY the identified issues and errors.
+2. Preserve valid parts of the roadmap.
+3. Do not introduce unsupported technologies or remove valid evidence references unless justified.
+4. Respect the user's available study time and fix any pacing or prerequisite ordering violations.
+"""

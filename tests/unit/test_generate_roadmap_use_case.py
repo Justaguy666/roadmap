@@ -132,10 +132,29 @@ class TestGenerateRoadmapUseCase:
 
         fake_llm = FakeLLMProvider()
         responses = [invalid_draft, valid_draft]
+        eval_call_count = 0
 
         def mock_complete(*args, **kwargs):
-            if kwargs.get("response_model").__name__ == "GoalAnalysisResult":
+            nonlocal eval_call_count
+            rm = kwargs.get("response_model")
+            if rm and rm.__name__ == "GoalAnalysisResult":
                 return get_default_fake_goal_analysis()
+            if rm and rm.__name__ == "RoadmapEvaluationResult":
+                eval_call_count += 1
+                from roadmap.agents.schemas.evaluator import EvaluationIssue, RoadmapEvaluationResult
+                if eval_call_count == 1:
+                    return RoadmapEvaluationResult(
+                        verdict="REVISE",
+                        score=50.0,
+                        issues=[
+                            EvaluationIssue(
+                                category="structural",
+                                severity="critical",
+                                message="Prerequisite ordering violation",
+                            )
+                        ],
+                    )
+                return RoadmapEvaluationResult(verdict="PASS", score=90.0)
             return responses.pop(0)
 
         fake_llm.complete = mock_complete  # type: ignore[assignment]
@@ -188,8 +207,22 @@ class TestGenerateRoadmapUseCase:
         fake_llm = FakeLLMProvider()
 
         def mock_complete(*args, **kwargs):
-            if kwargs.get("response_model").__name__ == "GoalAnalysisResult":
+            rm = kwargs.get("response_model")
+            if rm and rm.__name__ == "GoalAnalysisResult":
                 return get_default_fake_goal_analysis()
+            if rm and rm.__name__ == "RoadmapEvaluationResult":
+                from roadmap.agents.schemas.evaluator import EvaluationIssue, RoadmapEvaluationResult
+                return RoadmapEvaluationResult(
+                    verdict="REVISE",
+                    score=40.0,
+                    issues=[
+                        EvaluationIssue(
+                            category="structural",
+                            severity="critical",
+                            message="Advanced Physics is scheduled after dependent C++",
+                        )
+                    ],
+                )
             return invalid_draft
 
         fake_llm.complete = mock_complete  # type: ignore[assignment]

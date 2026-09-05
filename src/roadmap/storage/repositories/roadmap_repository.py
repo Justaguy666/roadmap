@@ -34,11 +34,14 @@ class SqliteRoadmapRepository:
             id=roadmap.id,
             profile_id=roadmap.profile_id,
             title=roadmap.title,
+            version=roadmap.version,
+            objective=roadmap.objective,
             total_estimated_hours=roadmap.total_estimated_hours,
             total_weeks=roadmap.total_weeks,
             assumptions_json=json.dumps(roadmap.assumptions),
             skipped_skill_names_json=json.dumps(roadmap.skipped_skill_names),
             research_run_id=roadmap.research_run_id,
+            quality_score=roadmap.quality_score,
             generated_at=roadmap.generated_at,
             last_updated_at=roadmap.last_updated_at,
         )
@@ -145,6 +148,14 @@ class SqliteRoadmapRepository:
         )
         return [self._to_entity(m) for m in models]
 
+    def get_next_version(self, profile_id: str) -> int:
+        count = (
+            self._session.query(RoadmapModel)
+            .filter(RoadmapModel.profile_id == profile_id)
+            .count()
+        )
+        return count + 1
+
     def delete(self, roadmap_id: str) -> None:
         rm = self._session.get(RoadmapModel, roadmap_id)
         if rm:
@@ -235,12 +246,15 @@ class SqliteRoadmapRepository:
             id=rm.id,
             profile_id=rm.profile_id,
             title=rm.title,
+            version=rm.version if hasattr(rm, "version") and rm.version else 1,
+            objective=rm.objective if hasattr(rm, "objective") and rm.objective else "",
             phases=phases,
             total_estimated_hours=rm.total_estimated_hours,
             total_weeks=rm.total_weeks,
             assumptions=json.loads(rm.assumptions_json),
             skipped_skill_names=json.loads(rm.skipped_skill_names_json),
             research_run_id=rm.research_run_id,
+            quality_score=rm.quality_score if hasattr(rm, "quality_score") and rm.quality_score else 0.0,
             generated_at=rm.generated_at,
             last_updated_at=rm.last_updated_at,
         )

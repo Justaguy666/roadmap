@@ -109,6 +109,8 @@ class Roadmap(BaseModel):
         max_length=200,
         description="Human-readable roadmap title",
     )
+    version: int = Field(default=1, ge=1, description="Sequential roadmap version (v1, v2, ...)")
+    objective: str = Field(default="", description="High-level roadmap goal or mission")
     phases: list[RoadmapPhase] = Field(default_factory=list)
 
     # Summary metrics
@@ -129,6 +131,12 @@ class Roadmap(BaseModel):
     research_run_id: str = Field(
         default="",
         description="ID of the research run that informed this roadmap",
+    )
+    quality_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Assessed multi-dimensional roadmap quality score (0-100)",
     )
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     last_updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

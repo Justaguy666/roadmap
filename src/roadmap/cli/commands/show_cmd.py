@@ -76,8 +76,10 @@ def show(
             console.print()
         else:
             # Show overview
-            print_header(f"{roadmap.title.upper()}")
+            print_header(f"{roadmap.title.upper()} (v{roadmap.version})")
             console.print(f"  Target: [bold]{profile.target_role or profile.target_goal}[/bold]")
+            if roadmap.quality_score > 0:
+                console.print(f"  Quality Score: [bold green]{roadmap.quality_score:.1f}/100[/bold green]")
             console.print()
             render_roadmap_overview(roadmap, progress_map)
             console.print()

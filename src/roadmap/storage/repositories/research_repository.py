@@ -58,9 +58,15 @@ class SqliteSourceRepository:
             return None
         return self._to_entity(m)
 
+    def load_by_url(self, url: str) -> Source | None:
+        return self.get_by_url(url)
+
     def list_all(self, limit: int = 100) -> list[Source]:
         models = self._session.query(SourceModel).limit(limit).all()
         return [self._to_entity(m) for m in models]
+
+    def load_all(self, profile_id: str | None = None) -> list[Source]:
+        return self.list_all(limit=1000)
 
     def _to_entity(self, m: SourceModel) -> Source:
         # Resolve source_type safely
@@ -122,6 +128,19 @@ class SqliteEvidenceRepository:
             if skill_name.lower() in skills:
                 result.append(self._to_entity(m))
         return result
+
+    def load_for_skill(self, skill_id: str) -> list[Evidence]:
+        return self.find_by_skill(skill_id)
+
+    def load_for_recommendation(self, recommendation_id: str) -> list[Evidence]:
+        rec = self._session.get(RecommendationModel, recommendation_id)
+        if not rec:
+            return []
+        eids = json.loads(rec.evidence_ids_json)
+        if not eids:
+            return []
+        models = self._session.query(EvidenceModel).filter(EvidenceModel.id.in_(eids)).all()
+        return [self._to_entity(m) for m in models]
 
     def list_all(self, limit: int = 100) -> list[Evidence]:
         models = self._session.query(EvidenceModel).limit(limit).all()
@@ -234,6 +253,38 @@ class SqliteRecommendationRepository:
             .all()
         )
         return [self._to_entity(m) for m in models]
+
+    def load_for_skill(self, skill_id: str, roadmap_id: str) -> Recommendation | None:
+        m = (
+            self._session.query(RecommendationModel)
+            .filter(
+                RecommendationModel.skill_id == skill_id,
+                RecommendationModel.roadmap_id == roadmap_id,
+            )
+            .first()
+        )
+        return self._to_entity(m) if m else None
+
+    def find_by_skill_name_or_id(self, skill_name_or_id: str, roadmap_id: str | None = None) -> Recommendation | None:
+        q = self._session.query(RecommendationModel).filter(
+            (RecommendationModel.skill_id == skill_name_or_id)
+            | (RecommendationModel.reasoning.ilike(f"%{skill_name_or_id}%"))
+        )
+        if roadmap_id:
+            q = q.filter(RecommendationModel.roadmap_id == roadmap_id)
+        m = q.order_by(RecommendationModel.created_at.desc()).first()
+        return self._to_entity(m) if m else None
+
+    def list_by_roadmap(self, roadmap_id: str) -> list[Recommendation]:
+        models = (
+            self._session.query(RecommendationModel)
+            .filter(RecommendationModel.roadmap_id == roadmap_id)
+            .all()
+        )
+        return [self._to_entity(m) for m in models]
+
+    def load_for_roadmap(self, roadmap_id: str) -> list[Recommendation]:
+        return self.list_by_roadmap(roadmap_id)
 
     def _to_entity(self, m: RecommendationModel) -> Recommendation:
         return Recommendation(

@@ -125,8 +125,10 @@ class SkillDependency(BaseModel):
     """
 
     id: str = Field(default_factory=new_id)
-    from_skill_id: str = Field(description="Prerequisite skill ID")
-    to_skill_id: str = Field(description="Dependent skill ID")
+    from_skill_id: str = Field(default="", description="Prerequisite skill ID")
+    to_skill_id: str = Field(default="", description="Dependent skill ID")
+    prerequisite_skill: str = Field(default="", description="Name of prerequisite skill")
+    dependent_skill: str = Field(default="", description="Name of dependent skill")
     dependency_type: DependencyType = Field(default=DependencyType.REQUIRES)
     confidence: float = Field(
         default=1.0,
@@ -138,10 +140,37 @@ class SkillDependency(BaseModel):
         default="manual",
         description="Origin: 'manual', 'llm', 'curriculum', etc.",
     )
+    evidence_ids: list[str] = Field(default_factory=list, description="Associated evidence IDs supporting this edge")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_hard_requirement(self) -> bool:
-        return self.dependency_type == DependencyType.REQUIRES
+        return self.dependency_type in (DependencyType.REQUIRES, DependencyType.PREREQUISITE)
+
+    @property
+    def from_name(self) -> str:
+        return self.prerequisite_skill or self.from_skill_id
+
+    @property
+    def to_name(self) -> str:
+        return self.dependent_skill or self.to_skill_id
+
+
+class SkillNode(BaseModel):
+    """
+    A discrete node in the domain skill dependency graph.
+    """
+
+    id: str = Field(default_factory=new_id)
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(default="general", max_length=100)
+    description: str = Field(default="", max_length=1000)
+    target_level: SkillLevel = Field(default=SkillLevel.PROFICIENT)
+    current_level: SkillLevel = Field(default=SkillLevel.MISSING)
+    priority: Priority = Field(default=Priority.MEDIUM)
+    estimated_hours: float = Field(default=20.0, ge=0.0)
+    evidence_ids: list[str] = Field(default_factory=list)
+    depth: int = Field(default=0, ge=0, description="Topological layer/depth in DAG")
+    prerequisites: list[str] = Field(default_factory=list, description="Names of prerequisite skills")
 
 

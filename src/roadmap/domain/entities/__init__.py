@@ -1,10 +1,15 @@
-"""Domain entities package — re-exports all entities."""
-
+from roadmap.domain.entities.evidence_aggregation import (
+    MarketObservation,
+    RoadmapQualityScore,
+    SkillDecision,
+    SkillDecisionFactors,
+    SkillEvidenceSummary,
+)
 from roadmap.domain.entities.goal import Competency, Goal
 from roadmap.domain.entities.learning_resource import LearningResource, Project
 from roadmap.domain.entities.progress_record import ProgressRecord
 from roadmap.domain.entities.roadmap import Milestone, Roadmap, RoadmapPhase
-from roadmap.domain.entities.skill import Skill, SkillDependency
+from roadmap.domain.entities.skill import Skill, SkillDependency, SkillNode
 from roadmap.domain.entities.source import Evidence, Recommendation, ResearchRun, Source
 from roadmap.domain.entities.user_profile import UserProfile
 
@@ -13,6 +18,7 @@ __all__ = [
     "Evidence",
     "Goal",
     "LearningResource",
+    "MarketObservation",
     "Milestone",
     "ProgressRecord",
     "Project",
@@ -20,8 +26,13 @@ __all__ = [
     "ResearchRun",
     "Roadmap",
     "RoadmapPhase",
+    "RoadmapQualityScore",
     "Skill",
+    "SkillDecision",
+    "SkillDecisionFactors",
     "SkillDependency",
+    "SkillEvidenceSummary",
+    "SkillNode",
     "Source",
     "UserProfile",
 ]

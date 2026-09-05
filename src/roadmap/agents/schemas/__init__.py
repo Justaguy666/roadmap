@@ -1,5 +1,9 @@
 """Agents structured Pydantic schemas."""
 
+from roadmap.agents.schemas.evaluator import (
+    EvaluationIssue,
+    RoadmapEvaluationResult,
+)
 from roadmap.agents.schemas.goal_analysis import (
     CompetencyDraft,
     GoalAnalysisResult,
@@ -31,6 +35,7 @@ from roadmap.agents.schemas.skill_gap import (
 
 __all__ = [
     "CompetencyDraft",
+    "EvaluationIssue",
     "EvidenceExtractionResult",
     "ExtractedClaimDraft",
     "GoalAnalysisResult",
@@ -42,6 +47,7 @@ __all__ = [
     "ResearchPlan",
     "ResearchQuery",
     "ResourceResearchResult",
+    "RoadmapEvaluationResult",
     "RoadmapGenerationResult",
     "RoadmapMilestoneDraft",
     "RoadmapPhaseDraft",
