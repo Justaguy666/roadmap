@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
-
+from roadmap.domain.entities.progress_record import ProgressRecord
 from roadmap.domain.entities.skill import Skill, SkillDependency
 from roadmap.domain.entities.user_profile import UserProfile
-from roadmap.domain.entities.progress_record import ProgressRecord
-from roadmap.domain.value_objects import DependencyType, Priority, SkillLevel, SkillStatus
+from roadmap.domain.value_objects import DependencyType, Priority, SkillLevel
 from roadmap.shared.ids import new_id
 from roadmap.storage.repositories.profile_repository import SqliteProfileRepository
-from roadmap.storage.repositories.skill_repository import SqliteSkillRepository
 from roadmap.storage.repositories.progress_repository import SqliteProgressRepository
+from roadmap.storage.repositories.skill_repository import SqliteSkillRepository
 
 
 def make_profile() -> UserProfile:

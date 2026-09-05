@@ -39,10 +39,11 @@ roadmap progress
 | `roadmap profile show` | Display current profile | 1 ✓ |
 | `roadmap profile edit` | Edit profile fields | 1 ✓ |
 | `roadmap profile reset` | Delete profile | 1 ✓ |
-| `roadmap show` | Show roadmap overview | 1 ✓ |
-| `roadmap show --phase N` | Show phase N details | 1 ✓ |
+| `roadmap analyze` | Analyze goal, competencies, and skill gaps | 2 ✓ |
+| `roadmap generate` | AI roadmap generation with validation & persistence | 2 ✓ |
+| `roadmap show` | Show roadmap overview | 1/2 ✓ |
+| `roadmap show --phase N` | Show phase N details | 1/2 ✓ |
 | `roadmap progress` | Progress dashboard | 1 ✓ |
-| `roadmap generate` | AI roadmap generation | 2 |
 | `roadmap research` | Market + resource research | 3 |
 | `roadmap research --refresh` | Force re-research | 3 |
 | `roadmap complete <skill>` | Mark skill complete | 5 |

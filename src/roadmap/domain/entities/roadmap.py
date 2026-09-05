@@ -5,7 +5,7 @@ The Roadmap is the central output of the system.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -36,7 +36,7 @@ class Milestone(BaseModel):
 
     def mark_achieved(self) -> None:
         self.is_achieved = True
-        self.achieved_at = datetime.now(timezone.utc)
+        self.achieved_at = datetime.now(UTC)
 
 
 class RoadmapPhase(BaseModel):
@@ -68,7 +68,7 @@ class RoadmapPhase(BaseModel):
     is_completed: bool = Field(default=False)
     completed_at: datetime | None = Field(default=None)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def total_estimated_hours(self) -> float:
@@ -90,7 +90,7 @@ class RoadmapPhase(BaseModel):
 
     def mark_completed(self) -> None:
         self.is_completed = True
-        self.completed_at = datetime.now(timezone.utc)
+        self.completed_at = datetime.now(UTC)
 
 
 class Roadmap(BaseModel):
@@ -130,8 +130,8 @@ class Roadmap(BaseModel):
         default="",
         description="ID of the research run that informed this roadmap",
     )
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
-    last_updated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def overall_completion_percentage(self) -> float:
@@ -167,5 +167,6 @@ class Roadmap(BaseModel):
             p.total_estimated_hours for p in self.phases
         )
         self.total_weeks = round(sum(p.estimated_weeks for p in self.phases))
-        self.last_updated_at = datetime.now(timezone.utc)
+        self.last_updated_at = datetime.now(UTC)
+
 

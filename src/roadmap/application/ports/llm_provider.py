@@ -13,7 +13,7 @@ Design:
 
 from __future__ import annotations
 
-from typing import Any, Protocol, TypeVar
+from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -28,15 +28,15 @@ class LLMMessage:
         self.content = content
 
     @staticmethod
-    def system(content: str) -> "LLMMessage":
+    def system(content: str) -> LLMMessage:
         return LLMMessage("system", content)
 
     @staticmethod
-    def user(content: str) -> "LLMMessage":
+    def user(content: str) -> LLMMessage:
         return LLMMessage("user", content)
 
     @staticmethod
-    def assistant(content: str) -> "LLMMessage":
+    def assistant(content: str) -> LLMMessage:
         return LLMMessage("assistant", content)
 
     def to_dict(self) -> dict[str, str]:
@@ -107,10 +107,34 @@ class LLMProvider(Protocol):
 
 
 class LLMProviderError(Exception):
-    """Raised when the LLM provider cannot complete a request."""
+    """Base exception raised when the LLM provider cannot complete a request."""
 
 
-class LLMValidationError(Exception):
+class MissingAPIKeyError(LLMProviderError):
+    """Raised when an API key is required but missing."""
+
+    def __init__(self, provider: str = "OpenAI", env_var: str = "OPENAI_API_KEY") -> None:
+        self.provider = provider
+        self.env_var = env_var
+        super().__init__(
+            f"{provider} API key not found. Please set the {env_var} environment variable "
+            f"or specify it in your .env file."
+        )
+
+
+class LLMAuthenticationError(LLMProviderError):
+    """Raised when authentication with the LLM provider fails."""
+
+
+class LLMRateLimitError(LLMProviderError):
+    """Raised when rate limits or quotas are exceeded."""
+
+
+class LLMTimeoutError(LLMProviderError):
+    """Raised when the LLM request times out."""
+
+
+class LLMValidationError(LLMProviderError):
     """Raised when LLM output cannot be validated against the schema."""
 
     def __init__(self, model_name: str, attempts: int, last_error: str) -> None:

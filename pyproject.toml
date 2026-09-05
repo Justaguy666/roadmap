@@ -59,13 +59,18 @@ addopts = "--tb=short -q"
 [tool.mypy]
 python_version = "3.11"
 strict = true
+warn_return_any = false
+warn_unused_ignores = false
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "C4", "SIM", "TID"]
-ignore = ["ANN101", "ANN102"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "TID"]
+ignore = ["E501", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "N806"]

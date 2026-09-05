@@ -59,3 +59,12 @@ class ValidationError(RoadmapDomainError):
     def __init__(self, field: str, message: str) -> None:
         self.field = field
         super().__init__(f"Validation error on '{field}': {message}")
+
+
+class RoadmapValidationError(RoadmapDomainError):
+    """Raised when a generated roadmap fails deterministic domain validation."""
+
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = errors
+        formatted = "; ".join(errors)
+        super().__init__(f"Roadmap failed validation: {formatted}")

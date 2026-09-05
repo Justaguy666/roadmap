@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from roadmap.storage.models import Base, UserProfileModel
+from roadmap.storage.models import Base
 
 
 @pytest.fixture(scope="function")

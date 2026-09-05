@@ -14,8 +14,8 @@ from sqlalchemy import engine_from_config, pool
 
 # Load all ORM models so that Base.metadata is fully populated
 import roadmap.storage.models  # noqa: F401
-from roadmap.storage.models.base import Base
 from roadmap.config.settings import settings
+from roadmap.storage.models.base import Base
 
 # Alembic Config object
 config = context.config

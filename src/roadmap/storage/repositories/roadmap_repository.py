@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -44,8 +43,30 @@ class SqliteRoadmapRepository:
             last_updated_at=roadmap.last_updated_at,
         )
         self._session.add(rm)
+        self._session.flush()
 
         for phase in roadmap.phases:
+            for skill in phase.skills:
+                existing_skill = self._session.get(SkillModel, skill.id)
+                if existing_skill is None:
+                    self._session.add(SkillModel(
+                        id=skill.id,
+                        profile_id=roadmap.profile_id,
+                        name=skill.name,
+                        category=skill.category,
+                        description=skill.description,
+                        current_level=skill.current_level.value,
+                        target_level=skill.target_level.value,
+                        status=skill.status.value,
+                        priority=skill.priority.value,
+                        market_demand_score=skill.market_demand_score,
+                        goal_relevance_score=skill.goal_relevance_score,
+                        estimated_hours=skill.estimated_hours,
+                        prerequisite_names_json=json.dumps(skill.prerequisite_names),
+                        evidence_ids_json=json.dumps(skill.evidence_ids),
+                    ))
+            self._session.flush()
+
             skill_ids = [s.id for s in phase.skills]
             pm = RoadmapPhaseModel(
                 id=phase.id,
@@ -59,6 +80,7 @@ class SqliteRoadmapRepository:
                 skill_ids_json=json.dumps(skill_ids),
             )
             self._session.add(pm)
+            self._session.flush()
             for milestone in phase.milestones:
                 mm = MilestoneModel(
                     id=milestone.id,

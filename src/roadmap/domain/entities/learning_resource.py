@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -60,7 +60,7 @@ class LearningResource(BaseModel):
         description="Evidence source ID if resource was found by research agent",
     )
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_affordable(self) -> bool:
@@ -101,8 +101,9 @@ class Project(BaseModel):
     )
     estimated_hours: float = Field(default=20.0, ge=0.0)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_high_value(self) -> bool:
         return self.portfolio_value >= 0.7
+

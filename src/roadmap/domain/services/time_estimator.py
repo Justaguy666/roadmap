@@ -15,7 +15,6 @@ from roadmap.domain.entities.roadmap import Roadmap, RoadmapPhase
 from roadmap.domain.entities.skill import Skill
 from roadmap.domain.value_objects import SkillLevel
 
-
 # Approximate hours to cover one "level gap" for a skill
 # These are starting estimates, refined by LLM in later MVPs.
 HOURS_PER_LEVEL_GAP: dict[tuple[SkillLevel, SkillLevel], float] = {

@@ -8,8 +8,8 @@ The CLI calls these use cases — never the repository directly.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 
+from roadmap.application.ports.repositories import ProfileRepository
 from roadmap.domain.entities.user_profile import UserProfile
 from roadmap.domain.exceptions import ProfileAlreadyExistsError, ProfileNotFoundError
 from roadmap.domain.value_objects import BudgetPreference, SkillLevel
@@ -42,8 +42,8 @@ class CreateProfileRequest:
 class CreateProfileUseCase:
     """Creates a new user profile. Raises if one already exists."""
 
-    def __init__(self, profile_repo: object) -> None:
-        self._repo = profile_repo  # ProfileRepository protocol
+    def __init__(self, profile_repo: ProfileRepository) -> None:
+        self._repo = profile_repo
 
     def execute(self, request: CreateProfileRequest, overwrite: bool = False) -> UserProfile:
         if self._repo.exists() and not overwrite:
@@ -80,7 +80,7 @@ class CreateProfileUseCase:
 class GetProfileUseCase:
     """Load the current profile. Raises if none exists."""
 
-    def __init__(self, profile_repo: object) -> None:
+    def __init__(self, profile_repo: ProfileRepository) -> None:
         self._repo = profile_repo
 
     def execute(self) -> UserProfile:
@@ -117,7 +117,7 @@ class UpdateProfileRequest:
 class UpdateProfileUseCase:
     """Update specific fields of an existing profile."""
 
-    def __init__(self, profile_repo: object) -> None:
+    def __init__(self, profile_repo: ProfileRepository) -> None:
         self._repo = profile_repo
 
     def execute(self, request: UpdateProfileRequest) -> UserProfile:
@@ -163,3 +163,14 @@ class UpdateProfileUseCase:
         self._repo.save(profile)
         logger.info("Profile updated", profile_id=profile.id)
         return profile
+
+
+class DeleteProfileUseCase:
+    """Delete the active user profile."""
+
+    def __init__(self, profile_repo: ProfileRepository) -> None:
+        self._repo = profile_repo
+
+    def execute(self) -> None:
+        self._repo.delete()
+        logger.info("Profile deleted")

@@ -7,10 +7,9 @@ Never use print() directly in command handlers.
 
 from __future__ import annotations
 
-import os
 import sys
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from rich.console import Console
 from rich.theme import Theme
@@ -86,8 +85,8 @@ def print_rule(title: str = "") -> None:
 @contextmanager
 def spin(message: str) -> Generator[None, None, None]:
     """Context manager that shows a spinner while work is in progress."""
-    from rich.spinner import Spinner
     from rich.live import Live
+    from rich.spinner import Spinner
     spinner = Spinner("dots", text=f"  {message}", style="cyan")
     with Live(spinner, console=console, refresh_per_second=10):
         yield

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from rich.panel import Panel
-from rich.text import Text
 
 from roadmap.cli.display.console import console
 from roadmap.domain.entities.source import Recommendation

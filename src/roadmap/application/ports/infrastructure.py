@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
-
 
 # ── WebFetcher ────────────────────────────────────────────────────────────────
 
@@ -20,7 +19,7 @@ class FetchResult:
     fetched_at: datetime = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "fetched_at", datetime.now(timezone.utc))
+        object.__setattr__(self, "fetched_at", datetime.now(UTC))
 
     @property
     def is_success(self) -> bool:

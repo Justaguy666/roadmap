@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
-
-from roadmap.domain.entities.skill import Skill, SkillDependency
+from roadmap.domain.entities.roadmap import Milestone, Roadmap, RoadmapPhase
+from roadmap.domain.entities.skill import Skill
 from roadmap.domain.entities.user_profile import UserProfile
-from roadmap.domain.entities.roadmap import Roadmap, RoadmapPhase, Milestone
 from roadmap.domain.value_objects import (
-    BudgetPreference,
-    DependencyType,
     Priority,
     SkillLevel,
     SkillStatus,
 )
-from roadmap.shared.ids import new_id, is_valid_id
+from roadmap.shared.ids import is_valid_id, new_id
 
 
 class TestSkillLevel:

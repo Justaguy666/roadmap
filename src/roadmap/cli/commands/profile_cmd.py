@@ -19,7 +19,7 @@ from roadmap.cli.display.console import (
 )
 from roadmap.cli.display.tables import render_profile_table
 from roadmap.domain.exceptions import ProfileNotFoundError
-from roadmap.domain.value_objects import BudgetPreference, SkillLevel
+from roadmap.domain.value_objects import SkillLevel
 
 app = typer.Typer()
 
@@ -28,7 +28,7 @@ app = typer.Typer()
 def profile_show() -> None:
     """Display the current user profile."""
     initialize_database()
-    with get_profile_use_cases() as (_, get_uc, __):
+    with get_profile_use_cases() as (_, get_uc, __, ___):
         try:
             profile = get_uc.execute()
             print_header(f"Profile — {profile.name}")
@@ -43,7 +43,7 @@ def profile_show() -> None:
 def profile_edit() -> None:
     """Interactively edit the current profile."""
     initialize_database()
-    with get_profile_use_cases() as (_, get_uc, update_uc):
+    with get_profile_use_cases() as (_, get_uc, update_uc, __):
         try:
             profile = get_uc.execute()
         except ProfileNotFoundError as e:
@@ -83,7 +83,7 @@ def profile_edit() -> None:
             request.target_role = role_new
 
         # Skill level
-        levels = [l.value for l in SkillLevel]
+        levels = [lvl.value for lvl in SkillLevel]
         console.print(f"  [dim]Current level:[/dim] [bold]{profile.current_level.value}[/bold]")
         level_new = Prompt.ask(
             "  New level", choices=[""] + levels, default=""
@@ -135,7 +135,7 @@ def profile_edit() -> None:
 def profile_reset() -> None:
     """Delete the current profile (WARNING: irreversible)."""
     initialize_database()
-    with get_profile_use_cases() as (_, get_uc, __):
+    with get_profile_use_cases() as (_, get_uc, __, delete_uc):
         try:
             profile = get_uc.execute()
         except ProfileNotFoundError as e:
@@ -147,5 +147,5 @@ def profile_reset() -> None:
             print_info("Cancelled.")
             raise typer.Exit(0)
 
-        get_uc._repo.delete()
+        delete_uc.execute()
         print_success("Profile deleted.")

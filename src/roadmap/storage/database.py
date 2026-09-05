@@ -11,10 +11,11 @@ SQLite-specific config:
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
+from typing import Any
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from roadmap.config.settings import settings
@@ -22,11 +23,11 @@ from roadmap.shared.logger import get_logger
 
 logger = get_logger(__name__)
 
-_engine = None
-_SessionFactory = None
+_engine: Engine | None = None
+_SessionFactory: sessionmaker[Session] | None = None
 
 
-def get_engine() -> object:
+def get_engine() -> Engine:
     """Return the singleton SQLAlchemy engine, creating it if needed."""
     global _engine
     if _engine is None:
@@ -46,8 +47,8 @@ def get_engine() -> object:
         # SQLite-specific setup
         if db_url.startswith("sqlite"):
             @event.listens_for(_engine, "connect")
-            def set_sqlite_pragmas(dbapi_connection: object, connection_record: object) -> None:  # noqa: ARG001
-                cursor = dbapi_connection.cursor()  # type: ignore[union-attr]
+            def set_sqlite_pragmas(dbapi_connection: Any, connection_record: Any) -> None:  # noqa: ARG001
+                cursor = dbapi_connection.cursor()
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.execute("PRAGMA synchronous=NORMAL")
@@ -56,14 +57,13 @@ def get_engine() -> object:
     return _engine
 
 
-def get_session_factory() -> sessionmaker:  # type: ignore[type-arg]
+def get_session_factory() -> sessionmaker[Session]:
     """Return the singleton session factory."""
     global _SessionFactory
     if _SessionFactory is None:
         _SessionFactory = sessionmaker(
             bind=get_engine(),
             autoflush=True,
-            autocommit=False,
             expire_on_commit=False,
         )
     return _SessionFactory
@@ -86,8 +86,8 @@ def get_session() -> Generator[Session, None, None]:
 
 def create_all_tables() -> None:
     """Create all tables defined in the ORM models."""
-    from roadmap.storage.models.base import Base  # noqa: F401  (imports all models)
     import roadmap.storage.models  # noqa: F401
+    from roadmap.storage.models.base import Base  # noqa: F401  (imports all models)
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine)

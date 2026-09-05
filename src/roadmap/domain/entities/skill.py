@@ -12,7 +12,7 @@ Important architectural note:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -81,8 +81,8 @@ class Skill(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_completed(self) -> bool:
@@ -110,7 +110,7 @@ class Skill(BaseModel):
         return (self.market_demand_score * 0.4) + (self.goal_relevance_score * 0.6)
 
     def touch(self) -> None:
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
 
 class SkillDependency(BaseModel):
@@ -138,9 +138,10 @@ class SkillDependency(BaseModel):
         default="manual",
         description="Origin: 'manual', 'llm', 'curriculum', etc.",
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_hard_requirement(self) -> bool:
         return self.dependency_type == DependencyType.REQUIRES
+
 

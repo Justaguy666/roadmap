@@ -6,7 +6,7 @@ A Competency is a high-level capability area within a goal.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -84,7 +84,7 @@ class Goal(BaseModel):
         default=None,
         description="When LLM analysis was performed; None if not yet analyzed",
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_analyzed(self) -> bool:
@@ -92,5 +92,5 @@ class Goal(BaseModel):
         return self.analyzed_at is not None
 
     def mark_analyzed(self) -> None:
-        self.analyzed_at = datetime.now(timezone.utc)
+        self.analyzed_at = datetime.now(UTC)
 

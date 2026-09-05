@@ -21,14 +21,14 @@ from roadmap.cli.display.console import (
     print_warning,
 )
 from roadmap.cli.display.tables import render_profile_table
-from roadmap.domain.exceptions import ProfileAlreadyExistsError
+from roadmap.domain.exceptions import ProfileNotFoundError
 from roadmap.domain.value_objects import BudgetPreference, SkillLevel
 
 app = typer.Typer()
 
 
 def _prompt_skill_level(prompt: str, default: SkillLevel = SkillLevel.FAMILIAR) -> SkillLevel:
-    levels = [l.value for l in SkillLevel]
+    levels = [lvl.value for lvl in SkillLevel]
     level_str = Prompt.ask(
         prompt,
         choices=levels,
@@ -64,15 +64,18 @@ def init(
     console.print("  [dim]Let's build your personalized learning roadmap.[/dim]")
     console.print()
 
-    with get_profile_use_cases() as (create_uc, get_uc, _):
-        if get_uc._repo.exists() and not force:
+    with get_profile_use_cases() as (create_uc, get_uc, _, __):
+        try:
             existing = get_uc.execute()
-            print_warning(
-                f"A profile for [bold]{existing.name}[/bold] already exists."
-            )
-            if not Confirm.ask("  Overwrite it?", default=False):
-                print_info("Run `roadmap profile` to view your current profile.")
-                raise typer.Exit(0)
+            if not force:
+                print_warning(
+                    f"A profile for [bold]{existing.name}[/bold] already exists."
+                )
+                if not Confirm.ask("  Overwrite it?", default=False):
+                    print_info("Run `roadmap profile` to view your current profile.")
+                    raise typer.Exit(0)
+        except ProfileNotFoundError:
+            pass
 
         # ── Gather inputs ──────────────────────────────────────────────
         print_header("Profile Setup")

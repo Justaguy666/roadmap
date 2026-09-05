@@ -5,7 +5,7 @@ Tracks the user's progress on individual skills.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -43,8 +43,8 @@ class ProgressRecord(BaseModel):
         max_length=1000,
         description="User notes about this progress update",
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_complete(self) -> bool:
@@ -52,14 +52,15 @@ class ProgressRecord(BaseModel):
 
     def mark_complete(self) -> None:
         self.completion_percentage = 100.0
-        self.completed_at = datetime.now(timezone.utc)
-        self.updated_at = datetime.now(timezone.utc)
+        self.completed_at = datetime.now(UTC)
+        self.updated_at = datetime.now(UTC)
 
     def update_progress(self, percentage: float, notes: str = "") -> None:
         self.completion_percentage = min(100.0, max(0.0, percentage))
         if notes:
             self.notes = notes
         if self.is_complete and self.completed_at is None:
-            self.completed_at = datetime.now(timezone.utc)
-        self.updated_at = datetime.now(timezone.utc)
+            self.completed_at = datetime.now(UTC)
+        self.updated_at = datetime.now(UTC)
+
 

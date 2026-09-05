@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
-
 from roadmap.domain.entities.roadmap import Milestone, Roadmap, RoadmapPhase
 from roadmap.domain.entities.skill import Skill
 from roadmap.domain.entities.user_profile import UserProfile
 from roadmap.domain.services.roadmap_validator import IssueType, RoadmapValidator
-from roadmap.domain.value_objects import SkillLevel
 from roadmap.shared.ids import new_id
 
 

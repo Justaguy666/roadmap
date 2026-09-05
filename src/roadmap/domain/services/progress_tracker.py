@@ -10,7 +10,7 @@ This is fully deterministic — no LLM calls.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from roadmap.domain.entities.progress_record import ProgressRecord
 from roadmap.domain.entities.roadmap import Roadmap
@@ -61,11 +61,11 @@ class ProgressTracker:
             skill_name=skill.name,
             completion_percentage=min(100.0, max(0.0, percentage)),
             notes=notes,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         if record.is_complete:
-            record.completed_at = datetime.now(timezone.utc)
+            record.completed_at = datetime.now(UTC)
         return record
 
     def mark_skill_complete(

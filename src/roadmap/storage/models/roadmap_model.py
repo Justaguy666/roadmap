@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -24,8 +24,8 @@ class RoadmapModel(Base):
     assumptions_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     skipped_skill_names_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     research_run_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
-    generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
     @property
     def assumptions(self) -> list[str]:
@@ -57,7 +57,7 @@ class RoadmapPhaseModel(Base):
     estimated_weeks: Mapped[float] = mapped_column(Float, nullable=False, default=4.0)
     is_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
     # Serialized skill IDs for this phase
     skill_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
@@ -105,7 +105,7 @@ class LearningResourceModel(Base):
     quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     associated_skill_names_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     source_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
 class ProjectModel(Base):
@@ -122,5 +122,5 @@ class ProjectModel(Base):
     expected_outcome: Mapped[str] = mapped_column(Text, nullable=False, default="")
     portfolio_value: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     estimated_hours: Mapped[float] = mapped_column(Float, nullable=False, default=20.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 

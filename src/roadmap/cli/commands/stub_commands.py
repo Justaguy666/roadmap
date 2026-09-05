@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import typer
 
-from roadmap.cli.display.console import console, print_info, print_warning
+from roadmap.cli.display.console import print_info, print_warning
 
 # ── research ──────────────────────────────────────────────────────────────────
 research_app = typer.Typer()
@@ -26,20 +26,7 @@ def research(
     raise typer.Exit(0)
 
 
-# ── generate ──────────────────────────────────────────────────────────────────
-generate_app = typer.Typer()
 
-
-@generate_app.command()
-def generate() -> None:
-    """Generate a personalized roadmap using AI. [MVP-2]"""
-    print_warning("Roadmap generation requires MVP-2 (LLM integration).")
-    print_info("LLM-powered generation will be available in MVP-2.")
-    print_info(
-        "Tip: In MVP-1 you can manually create a roadmap for testing by using the "
-        "storage layer directly."
-    )
-    raise typer.Exit(0)
 
 
 # ── complete ──────────────────────────────────────────────────────────────────
@@ -51,7 +38,7 @@ def complete(
     skill: str = typer.Argument(help="Skill name to mark as complete"),
 ) -> None:
     """Mark a skill as complete. [MVP-5]"""
-    print_warning(f"Skill completion tracking requires MVP-5.")
+    print_warning("Skill completion tracking requires MVP-5.")
     print_info(f"Skill: [bold]{skill}[/bold]")
     raise typer.Exit(0)
 

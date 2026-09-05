@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,8 +42,21 @@ class Settings(BaseSettings):
     )
 
     # ── LLM Provider ─────────────────────────────────────────────────────
-    llm_provider: str = Field(default="openai", description="LLM provider name")
-    llm_model: str = Field(default="gpt-4o", description="LLM model identifier")
+    openai_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("OPENAI_API_KEY", "ROADMAP_OPENAI_API_KEY"),
+        description="OpenAI API key (from OPENAI_API_KEY or ROADMAP_OPENAI_API_KEY)",
+    )
+    llm_provider: str = Field(
+        default="openai",
+        validation_alias=AliasChoices("ROADMAP_LLM_PROVIDER", "LLM_PROVIDER"),
+        description="LLM provider name (openai | fake | mock)",
+    )
+    llm_model: str = Field(
+        default="gpt-4o",
+        validation_alias=AliasChoices("OPENAI_MODEL", "ROADMAP_LLM_MODEL", "LLM_MODEL"),
+        description="LLM model identifier",
+    )
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     llm_max_tokens: int = Field(default=4096, gt=0)
     llm_max_retries: int = Field(default=3, ge=1, le=10)

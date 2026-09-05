@@ -32,6 +32,9 @@ class IssueType(str, Enum):
     MISSING_OBJECTIVE = "missing_objective"
     ZERO_TIME_ESTIMATE = "zero_time_estimate"
     PREREQUISITE_ORDER_VIOLATION = "prerequisite_order_violation"
+    INVALID_DURATION = "invalid_duration"
+    NEGATIVE_HOURS = "negative_hours"
+    INVALID_REFERENCE = "invalid_reference"
 
 
 @dataclass(frozen=True)
@@ -83,9 +86,60 @@ class RoadmapValidator:
         self._check_duplicate_skills(roadmap, result)
         self._check_missing_objectives(roadmap, result)
         self._check_milestone_criteria(roadmap, result)
+        self._check_durations_and_hours(roadmap, result)
+        self._check_prerequisite_ordering(roadmap, result)
         self._check_workload(roadmap, profile, result)
 
         return result
+
+    def _check_durations_and_hours(self, roadmap: Roadmap, result: ValidationResult) -> None:
+        for phase in roadmap.phases:
+            if phase.estimated_weeks <= 0:
+                result.add_error(
+                    IssueType.INVALID_DURATION,
+                    f"Phase {phase.phase_number} '{phase.name}' has non-positive duration: {phase.estimated_weeks}w.",
+                    affected=phase.name,
+                )
+            for skill in phase.skills:
+                if skill.estimated_hours < 0:
+                    result.add_error(
+                        IssueType.NEGATIVE_HOURS,
+                        f"Skill '{skill.name}' in Phase {phase.phase_number} has negative estimated hours: {skill.estimated_hours}h.",
+                        affected=skill.name,
+                    )
+            for project in phase.projects:
+                if project.estimated_hours < 0:
+                    result.add_error(
+                        IssueType.NEGATIVE_HOURS,
+                        f"Project '{project.name}' in Phase {phase.phase_number} has negative estimated hours: {project.estimated_hours}h.",
+                        affected=project.name,
+                    )
+
+    def _check_prerequisite_ordering(self, roadmap: Roadmap, result: ValidationResult) -> None:
+        # Map skill lower-case name to its phase number
+        skill_phase_map: dict[str, int] = {}
+        for phase in roadmap.phases:
+            for skill in phase.skills:
+                skill_phase_map[skill.name.lower()] = phase.phase_number
+
+        for phase in roadmap.phases:
+            for skill in phase.skills:
+                for prereq in skill.prerequisite_names:
+                    prereq_lower = prereq.lower()
+                    if prereq_lower == skill.name.lower():
+                        result.add_error(
+                            IssueType.PREREQUISITE_ORDER_VIOLATION,
+                            f"Skill '{skill.name}' cannot have itself as a prerequisite.",
+                            affected=skill.name,
+                        )
+                    elif prereq_lower in skill_phase_map:
+                        prereq_phase = skill_phase_map[prereq_lower]
+                        if prereq_phase > phase.phase_number:
+                            result.add_error(
+                                IssueType.PREREQUISITE_ORDER_VIOLATION,
+                                f"Skill '{skill.name}' in Phase {phase.phase_number} requires '{prereq}', which is scheduled in later Phase {prereq_phase}.",
+                                affected=skill.name,
+                            )
 
     def _check_empty_phases(self, roadmap: Roadmap, result: ValidationResult) -> None:
         for phase in roadmap.phases:

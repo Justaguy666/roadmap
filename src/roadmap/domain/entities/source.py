@@ -6,7 +6,7 @@ to a concrete source (job posting, article, documentation, etc.).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -30,7 +30,7 @@ class Source(BaseModel):
     domain: str = Field(default="", max_length=200, description="e.g. 'github.com'")
 
     # Timestamps
-    retrieved_at: datetime = Field(default_factory=datetime.utcnow)
+    retrieved_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     published_at: datetime | None = Field(
         default=None,
         description="Publication/last-update date if available",
@@ -53,7 +53,7 @@ class Source(BaseModel):
         """True if the source was published or updated within 2 years."""
         if self.published_at is None:
             return True  # assume fresh if unknown
-        age_years = (datetime.now(timezone.utc) - self.published_at).days / 365
+        age_years = (datetime.now(UTC) - self.published_at).days / 365
         return age_years <= 2.0
 
     @property
@@ -94,7 +94,7 @@ class Evidence(BaseModel):
         description="Skill names this evidence supports",
     )
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_high_confidence(self) -> bool:
@@ -136,7 +136,7 @@ class Recommendation(BaseModel):
         description="Agent's confidence in this recommendation (0–1)",
     )
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_included(self) -> bool:
@@ -145,4 +145,5 @@ class Recommendation(BaseModel):
     @property
     def is_postponed(self) -> bool:
         return self.decision == "postpone"
+
 

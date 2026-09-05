@@ -6,7 +6,7 @@ Pure Python / Pydantic — no database or external library imports.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator
@@ -100,8 +100,8 @@ class UserProfile(BaseModel):
     )
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @field_validator("current_skills", "programming_languages", mode="before")
     @classmethod
@@ -125,7 +125,8 @@ class UserProfile(BaseModel):
 
     def touch(self) -> None:
         """Update the updated_at timestamp."""
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     model_config = {"use_enum_values": False}
+
 

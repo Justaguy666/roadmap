@@ -3,13 +3,12 @@ Main Typer application — registers all commands.
 
 Command structure:
   roadmap init
-  roadmap profile show
-  roadmap profile edit
-  roadmap profile reset
-  roadmap show [--phase N]
+  roadmap profile [show|edit|reset]
+  roadmap analyze                     (MVP-2 functional)
+  roadmap generate [--replace]        (MVP-2 functional)
+  roadmap show [--phase N] [--all]
   roadmap progress
   roadmap research [--refresh]        (MVP-3 stub)
-  roadmap generate                    (MVP-2 stub)
   roadmap complete <skill>            (MVP-5 stub)
   roadmap update                      (MVP-5 stub)
   roadmap why <skill>                 (MVP-5 stub)
@@ -22,6 +21,8 @@ from __future__ import annotations
 import typer
 
 from roadmap.cli.commands import (
+    analyze_cmd,
+    generate_cmd,
     init_cmd,
     profile_cmd,
     progress_cmd,
@@ -41,17 +42,20 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 
-# ── Core commands (MVP-1) ─────────────────────────────────────────────────────
-app.add_typer(init_cmd.app, name="init", invoke_without_command=True)
-app.add_typer(profile_cmd.app, name="profile")
-app.add_typer(show_cmd.app, name="show", invoke_without_command=True)
-app.add_typer(progress_cmd.app, name="progress", invoke_without_command=True)
+# ── Direct commands ───────────────────────────────────────────────────────────
+app.command(name="init", help="Create a new user profile interactively.")(init_cmd.init)
+app.command(name="analyze", help="Analyze your career goal to infer target competencies and skills.")(analyze_cmd.analyze)
+app.command(name="generate", help="Generate a personalized, validated learning roadmap using AI.")(generate_cmd.generate)
+app.command(name="show", help="Display the current roadmap overview or phase curriculum.")(show_cmd.show)
+app.command(name="progress", help="Show overall learning progress across all phases.")(progress_cmd.progress)
 
-# ── Stub commands (MVP-2+) ────────────────────────────────────────────────────
-app.add_typer(stub_commands.research_app, name="research", invoke_without_command=True)
-app.add_typer(stub_commands.generate_app, name="generate", invoke_without_command=True)
-app.add_typer(stub_commands.complete_app, name="complete", invoke_without_command=True)
-app.add_typer(stub_commands.update_app, name="update", invoke_without_command=True)
-app.add_typer(stub_commands.why_app, name="why", invoke_without_command=True)
-app.add_typer(stub_commands.sources_app, name="sources", invoke_without_command=True)
-app.add_typer(stub_commands.export_app, name="export", invoke_without_command=True)
+# ── Command groups ────────────────────────────────────────────────────────────
+app.add_typer(profile_cmd.app, name="profile", help="Manage your user profile (show, edit, reset).")
+
+# ── Stub commands (MVP-3+) ────────────────────────────────────────────────────
+app.command(name="research", help="Research market requirements and learning resources. [MVP-3]")(stub_commands.research)
+app.command(name="complete", help="Mark a skill as complete. [MVP-5]")(stub_commands.complete)
+app.command(name="update", help="Replan roadmap based on current progress. [MVP-5]")(stub_commands.update)
+app.command(name="why", help="Explain why a skill is included or postponed. [MVP-5]")(stub_commands.why)
+app.command(name="sources", help="List all research sources. [MVP-3]")(stub_commands.sources)
+app.command(name="export", help="Export the roadmap as JSON or Markdown. [MVP-6]")(stub_commands.export)

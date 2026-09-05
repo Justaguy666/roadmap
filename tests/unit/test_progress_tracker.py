@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from roadmap.domain.entities.progress_record import ProgressRecord
 from roadmap.domain.entities.roadmap import Roadmap, RoadmapPhase
 from roadmap.domain.entities.skill import Skill, SkillDependency
 from roadmap.domain.services.progress_tracker import ProgressTracker

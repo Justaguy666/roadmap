@@ -20,8 +20,9 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 E = TypeVar("E")
@@ -46,7 +47,7 @@ class Ok(Generic[T]):
     def unwrap_or(self, default: T) -> T:  # noqa: ARG002
         return self.value
 
-    def map(self, fn: Callable[[T], U]) -> "Ok[U]":
+    def map(self, fn: Callable[[T], U]) -> Ok[U]:
         return Ok(fn(self.value))
 
     def __bool__(self) -> bool:
@@ -71,7 +72,7 @@ class Err(Generic[E]):
     def unwrap_or(self, default: object) -> object:
         return default
 
-    def map(self, fn: object) -> "Err[E]":  # noqa: ARG002
+    def map(self, fn: object) -> Err[E]:  # noqa: ARG002
         return self
 
     def __bool__(self) -> bool:

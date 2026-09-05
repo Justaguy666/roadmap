@@ -122,12 +122,32 @@ def render_phase_detail(phase: RoadmapPhase) -> None:
 
     if phase.projects:
         console.print()
-        console.print("  [bold]Projects[/bold]")
+        console.print("  [bold highlight]Projects[/bold highlight]")
         for p in phase.projects:
+            console.print(f"    [bold]{p.name}[/bold] [dim](~{p.estimated_hours:.0f}h, difficulty: {p.difficulty.label})[/dim]")
+            if p.description:
+                console.print(f"      [dim]{p.description}[/dim]")
+            if p.expected_outcome:
+                console.print(f"      [info]Deliverable:[/info] {p.expected_outcome}")
+
+    if phase.milestones:
+        console.print()
+        console.print("  [bold highlight]Milestones & Exit Criteria[/bold highlight]")
+        for m in phase.milestones:
+            m_status = "[phase_done]✓ Achieved[/phase_done]" if m.is_achieved else "[phase_pending]Pending[/phase_pending]"
+            console.print(f"    [bold]{m.name}[/bold] — {m_status}")
+            if m.exit_criteria:
+                for crit in m.exit_criteria:
+                    console.print(f"      [dim][ ][/dim] {crit}")
+
+    if phase.resources:
+        console.print()
+        console.print("  [bold highlight]Curated Learning Resources[/bold highlight]")
+        for r in phase.resources:
+            cost_str = "Free" if r.is_free else f"${r.cost:.0f}"
             console.print(
-                f"    [dim]·[/dim] {p.name}  "
-                f"[dim]~{p.estimated_hours:.0f}h  "
-                f"Portfolio value: {p.portfolio_value:.0%}[/dim]"
+                f"    [dim]·[/dim] {r.title}  "
+                f"[dim]{r.provider}  {cost_str}  ~{r.estimated_hours:.0f}h[/dim]"
             )
 
 
@@ -168,7 +188,6 @@ def render_progress_dashboard(
     progress_map: dict[str, float],
 ) -> None:
     """Render a progress dashboard with per-phase bars."""
-    from rich.progress import BarColumn, Progress, TextColumn, TaskProgressColumn
 
     console.print()
     for phase in roadmap.phases:

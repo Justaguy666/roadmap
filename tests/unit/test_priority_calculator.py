@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from roadmap.domain.entities.skill import Skill
 from roadmap.domain.services.priority_calculator import (
     DEFAULT_WEIGHTS,
