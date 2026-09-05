@@ -61,16 +61,27 @@ def get_llm_provider(
     if selected in ("fake", "mock", "test"):
         return FakeLLMProvider()
 
-    if selected == "openai":
-        return OpenAIProvider(
-            api_key=api_key or settings.openai_api_key,
+    if selected in ("gemini", "google"):
+        from roadmap.infrastructure.llm.gemini_provider import GeminiProvider
+
+        return GeminiProvider(
+            api_key=api_key or settings.gemini_api_key,
             model=model or settings.llm_model,
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
             max_retries=settings.llm_max_retries,
         )
 
-    raise ValueError(f"Unsupported LLM provider: {selected}")
+    if selected == "openai":
+        return OpenAIProvider(
+            api_key=api_key or settings.openai_api_key,
+            model=model or settings.llm_model or "gpt-4o",
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            max_retries=settings.llm_max_retries,
+        )
+
+    raise ValueError(f"Unsupported LLM provider: {selected}. Valid options: 'gemini', 'openai', 'mock'")
 
 def get_search_provider(
     provider_name: str | None = None,

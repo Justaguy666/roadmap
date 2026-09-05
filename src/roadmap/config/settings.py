@@ -47,15 +47,30 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OPENAI_API_KEY", "ROADMAP_OPENAI_API_KEY"),
         description="OpenAI API key (from OPENAI_API_KEY or ROADMAP_OPENAI_API_KEY)",
     )
+    gemini_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "ROADMAP_GEMINI_API_KEY"),
+        description="Google Gemini API key (from GEMINI_API_KEY or ROADMAP_GEMINI_API_KEY)",
+    )
+    openai_model: str = Field(
+        default="gpt-4o",
+        validation_alias=AliasChoices("OPENAI_MODEL", "ROADMAP_OPENAI_MODEL"),
+        description="OpenAI model identifier",
+    )
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",
+        validation_alias=AliasChoices("GEMINI_MODEL", "ROADMAP_GEMINI_MODEL"),
+        description="Gemini model identifier",
+    )
     llm_provider: str = Field(
-        default="openai",
+        default="gemini",
         validation_alias=AliasChoices("ROADMAP_LLM_PROVIDER", "LLM_PROVIDER"),
-        description="LLM provider name (openai | fake | mock)",
+        description="LLM provider name (gemini | openai | fake | mock)",
     )
     llm_model: str = Field(
-        default="gpt-4o",
-        validation_alias=AliasChoices("OPENAI_MODEL", "ROADMAP_LLM_MODEL", "LLM_MODEL"),
-        description="LLM model identifier",
+        default="",
+        validation_alias=AliasChoices("ROADMAP_LLM_MODEL", "LLM_MODEL"),
+        description="Universal LLM model override (takes precedence over provider-specific models)",
     )
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     llm_max_tokens: int = Field(default=4096, gt=0)

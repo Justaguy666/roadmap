@@ -57,7 +57,7 @@ class OpenAIProvider(LLMProvider):
         if not resolved_key or not resolved_key.strip():
             raise MissingAPIKeyError(provider="OpenAI", env_var="OPENAI_API_KEY")
 
-        self.model = model or settings.llm_model
+        self.model = model or settings.llm_model or settings.openai_model or "gpt-4o"
         self.default_temperature = temperature if temperature is not None else settings.llm_temperature
         self.default_max_tokens = max_tokens or settings.llm_max_tokens
         self.default_max_retries = max_retries or settings.llm_max_retries

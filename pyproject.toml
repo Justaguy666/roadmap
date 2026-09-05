@@ -29,6 +29,7 @@ dependencies = [
     "instructor>=1.3.0",
     # Graph (MVP-4, installed now for interface)
     "networkx>=3.3",
+    "google-genai>=2.22.0",
 ]
 
 [project.scripts]
