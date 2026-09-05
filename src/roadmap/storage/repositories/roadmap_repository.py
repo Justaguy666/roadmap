@@ -260,4 +260,5 @@ class SqliteRoadmapRepository:
             goal_relevance_score=m.goal_relevance_score,
             estimated_hours=m.estimated_hours,
             prerequisite_names=json.loads(m.prerequisite_names_json),
+            evidence_ids=json.loads(m.evidence_ids_json) if hasattr(m, "evidence_ids_json") and m.evidence_ids_json else [],
         )

@@ -136,13 +136,19 @@ class SourceType(str, Enum):
     """Category of an evidence source."""
 
     JOB_POSTING = "job_posting"
-    OFFICIAL_DOCS = "official_docs"
-    ARTICLE = "article"
-    GITHUB = "github"
+    COMPANY_CAREER_PAGE = "company_career_page"
+    INDUSTRY_REPORT = "industry_report"
+    UNIVERSITY_CURRICULUM = "university_curriculum"
+    OFFICIAL_DOCUMENTATION = "official_documentation"
+    OFFICIAL_DOCS = "official_docs"  # alias for backwards compatibility
     COURSE = "course"
+    BOOK = "book"
+    GITHUB = "github"
+    TECHNICAL_ARTICLE = "technical_article"
+    ARTICLE = "article"  # alias
     SURVEY = "survey"
     PAPER = "paper"
-    UNIVERSITY = "university"
+    UNIVERSITY = "university"  # alias
     OTHER = "other"
 
 

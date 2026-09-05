@@ -147,3 +147,27 @@ class Recommendation(BaseModel):
         return self.decision == "postpone"
 
 
+class ResearchRun(BaseModel):
+    """
+    Represents one research execution for a topic/goal.
+
+    Allows future refreshes, historical tracking, and reproducibility.
+    """
+
+    id: str = Field(default_factory=new_id)
+    profile_id: str = Field(description="Owning profile ID")
+    topic: str = Field(min_length=1, max_length=500, description="Target career or subject researched")
+    target_market: str = Field(default="", max_length=200, description="Geographic or domain market")
+    status: str = Field(default="completed", description="completed | partial | failed")
+    source_count: int = Field(default=0, ge=0)
+    evidence_count: int = Field(default=0, ge=0)
+    queries: list[str] = Field(default_factory=list, description="Executed search queries")
+    errors: list[str] = Field(default_factory=list, description="Non-fatal execution errors encountered")
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = Field(default=None)
+
+    @property
+    def is_success(self) -> bool:
+        return self.status in ("completed", "partial")
+
+

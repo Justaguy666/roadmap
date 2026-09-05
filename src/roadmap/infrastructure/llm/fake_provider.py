@@ -288,6 +288,47 @@ class FakeLLMProvider(LLMProvider):
         if response_model is RoadmapGenerationResult or issubclass(response_model, RoadmapGenerationResult):
             return self.roadmap_result  # type: ignore[return-value]
 
+        # Research-specific models
+        from roadmap.agents.schemas.research import (
+            EvidenceExtractionResult,
+            ExtractedClaimDraft,
+            ResearchPlan,
+            ResearchQuery,
+        )
+
+        if response_model is ResearchPlan or issubclass(response_model, ResearchPlan):
+            return ResearchPlan(  # type: ignore[return-value]
+                topic="Gameplay Programmer",
+                target_market="Vietnam, Japan",
+                queries=[
+                    ResearchQuery(query="gameplay programmer C++ requirements", query_type="market", focus="C++"),
+                    ResearchQuery(query="Unreal Engine 5 gameplay architecture documentation", query_type="resource", focus="Unreal Engine"),
+                    ResearchQuery(query="game math 3D linear algebra course", query_type="resource", focus="Linear Algebra"),
+                ],
+            )
+
+        if response_model is EvidenceExtractionResult or issubclass(response_model, EvidenceExtractionResult):
+            return EvidenceExtractionResult(  # type: ignore[return-value]
+                source_title="Gameplay Engineering Requirements & Architecture",
+                detected_source_type="job_posting",
+                claims=[
+                    ExtractedClaimDraft(
+                        claim="Requires modern C++ (C++17/20), strong 3D math and pointer mastery.",
+                        related_skills=["C++", "Linear Algebra"],
+                        source_type="job_posting",
+                        confidence=0.9,
+                        relevance=0.95,
+                    ),
+                    ExtractedClaimDraft(
+                        claim="Demonstrated experience architecting gameplay components in Unreal Engine 5.",
+                        related_skills=["Unreal Engine", "Game Loop & Architecture"],
+                        source_type="job_posting",
+                        confidence=0.88,
+                        relevance=0.92,
+                    ),
+                ],
+            )
+
         # Generic fallback if custom model passed
         try:
             return response_model()  # type: ignore[call-arg]

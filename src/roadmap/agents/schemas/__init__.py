@@ -6,6 +6,16 @@ from roadmap.agents.schemas.goal_analysis import (
     OptionalSkillDraft,
     RequiredSkillDraft,
 )
+from roadmap.agents.schemas.research import (
+    EvidenceExtractionResult,
+    ExtractedClaimDraft,
+    MarketResearchResult,
+    MarketSkillObservation,
+    RecommendedResourceDraft,
+    ResearchPlan,
+    ResearchQuery,
+    ResourceResearchResult,
+)
 from roadmap.agents.schemas.roadmap_generation import (
     RoadmapGenerationResult,
     RoadmapMilestoneDraft,
@@ -21,9 +31,17 @@ from roadmap.agents.schemas.skill_gap import (
 
 __all__ = [
     "CompetencyDraft",
+    "EvidenceExtractionResult",
+    "ExtractedClaimDraft",
     "GoalAnalysisResult",
+    "MarketResearchResult",
+    "MarketSkillObservation",
     "OptionalSkillDraft",
+    "RecommendedResourceDraft",
     "RequiredSkillDraft",
+    "ResearchPlan",
+    "ResearchQuery",
+    "ResourceResearchResult",
     "RoadmapGenerationResult",
     "RoadmapMilestoneDraft",
     "RoadmapPhaseDraft",

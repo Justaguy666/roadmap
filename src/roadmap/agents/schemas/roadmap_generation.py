@@ -35,6 +35,16 @@ class RoadmapSkillDraft(BaseModel):
         le=1000.0,
         description="Estimated learning hours required for this skill",
     )
+    evidence_ids: list[str] = Field(
+        default_factory=list,
+        description="IDs of supporting evidence records justifying this skill's inclusion",
+    )
+    confidence: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Confidence in market/curriculum relevance",
+    )
 
 
 class RoadmapProjectDraft(BaseModel):

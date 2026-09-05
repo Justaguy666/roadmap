@@ -62,14 +62,24 @@ class Settings(BaseSettings):
     llm_max_retries: int = Field(default=3, ge=1, le=10)
 
     # ── Search Provider ───────────────────────────────────────────────────
-    search_provider: str = Field(default="mock", description="Search provider name")
+    exa_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("EXA_API_KEY", "ROADMAP_EXA_API_KEY"),
+        description="Exa search API key (from EXA_API_KEY or ROADMAP_EXA_API_KEY)",
+    )
+    search_provider: str = Field(
+        default="mock",
+        validation_alias=AliasChoices("ROADMAP_SEARCH_PROVIDER", "SEARCH_PROVIDER"),
+        description="Search provider name (exa | mock | fake)",
+    )
     search_max_results: int = Field(default=10, ge=1, le=50)
 
     # ── Research Cache ────────────────────────────────────────────────────
     cache_ttl_hours: int = Field(default=24, ge=1)
     cache_max_size_mb: int = Field(default=512, ge=64)
 
-    # ── Agent Limits ──────────────────────────────────────────────────────
+    # ── Research Limits & Concurrency ──────────────────────────────────────
+    research_concurrency: int = Field(default=5, ge=1, le=20)
     agent_max_revisions: int = Field(default=3, ge=1, le=10)
     research_timeout_seconds: int = Field(default=120, ge=10)
 

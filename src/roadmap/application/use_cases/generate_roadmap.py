@@ -307,6 +307,7 @@ class GenerateRoadmapUseCase:
                     priority=sd.priority,
                     estimated_hours=sd.estimated_hours,
                     prerequisite_names=sd.prerequisites,
+                    evidence_ids=sd.evidence_ids,
                     status=SkillStatus.PENDING,
                 )
                 for sd in pd.skills
