@@ -79,3 +79,51 @@ def build_evidence_extraction_prompt(
         f"--- End Document ---\n\n"
         "Extract key evidence claims and classify the source."
     )
+
+
+# ── Batch Evidence Extraction ──────────────────────────────────────────────────
+
+BATCH_EVIDENCE_EXTRACTION_SYSTEM_PROMPT = """You are a Senior Evidence Extraction Agent for RoadmapAI.
+Your task is to analyze a batch of web documents retrieved from search results and extract verifiable, concrete claims for each document.
+
+Rules:
+1. Process each document in the batch independently, returning an entry in `documents` with matching `page_index` and `url`.
+2. Extract only facts, concrete skill requirements, tool versions, and curriculum topics directly stated in each text.
+3. Ground each claim in the text. Never hallucinate or extrapolate statistics not present.
+4. Classify source type accurately:
+   - job_posting: Specific job opening or hiring description
+   - company_career_page: Studio/company overview of role requirements
+   - official_documentation: Official engine/language/framework docs
+   - university_curriculum: College course, syllabus, lecture series
+   - industry_report / survey: Developer survey, market research
+   - technical_article: Blog post or guide
+   - course: Online course description
+   - other
+5. Assign realistic confidence (0.0 to 1.0) and relevance (0.0 to 1.0).
+6. Associate each claim with one or more skill names (e.g. ['C++', 'Unreal Engine 5', 'Linear Algebra']).
+"""
+
+
+def build_batch_evidence_extraction_prompt(
+    pages: list[tuple[int, str, str, str]],  # (index, url, title, content)
+    target_goal: str = "",
+    target_market: str = "",
+) -> str:
+    parts = [
+        f"Target Goal / Role: {target_goal or 'Technical Career'}",
+    ]
+    if target_market:
+        parts.append(f"Target Market / Regions: {target_market}")
+    parts.append(f"\nPlease analyze the following {len(pages)} documents and extract evidence claims for each:")
+
+    for idx, url, title, text in pages:
+        parts.append(f"\n=== DOCUMENT [{idx}] ===")
+        parts.append(f"URL: {url}")
+        parts.append(f"TITLE: {title}")
+        parts.append("CONTENT:")
+        parts.append(text)
+        parts.append(f"=== END DOCUMENT [{idx}] ===")
+
+    parts.append("\nExtract concrete claims and classify source types for all documents in the batch.")
+    return "\n".join(parts)
+

@@ -7,7 +7,9 @@ All Gemini/Google API errors are translated to domain/application port exception
 
 from __future__ import annotations
 
+import contextlib
 import json
+import re
 import time
 from typing import TypeVar
 
@@ -18,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from roadmap.application.ports.llm_provider import (
     LLMAuthenticationError,
+    LLMDailyQuotaExceededError,
     LLMMessage,
     LLMProvider,
     LLMProviderError,
@@ -117,6 +120,7 @@ class GeminiProvider(LLMProvider):
             max_output_tokens=tokens,
             response_mime_type="application/json",
             response_schema=response_model,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
 
         last_error: Exception | None = None
@@ -175,7 +179,33 @@ class GeminiProvider(LLMProvider):
                 if code in (401, 403):
                     raise LLMAuthenticationError(f"Gemini authentication failed: {err_msg}") from e
                 if code == 429 or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
-                    raise LLMRateLimitError(f"Gemini quota/rate limit exceeded: {err_msg}") from e
+                    # Parse retry delay if available
+                    retry_seconds: float | None = None
+                    m_retry = re.search(r"retry in (\d+(?:\.\d+)?)s", err_msg, re.IGNORECASE)
+                    if m_retry:
+                        with contextlib.suppress(Exception):
+                            retry_seconds = float(m_retry.group(1))
+                    if not retry_seconds:
+                        m_delay = re.search(r"'retryDelay':\s*'(\d+)s'", err_msg)
+                        if m_delay:
+                            with contextlib.suppress(Exception):
+                                retry_seconds = float(m_delay.group(1))
+
+                    # Check for daily quota exhaustion
+                    is_daily = (
+                        "GenerateRequestsPerDay" in err_msg
+                        or "perday" in err_msg.lower()
+                        or "daily" in err_msg.lower()
+                    )
+                    if is_daily:
+                        raise LLMDailyQuotaExceededError(
+                            f"DAILY_QUOTA_EXCEEDED: Gemini daily free-tier quota has been exhausted. {err_msg}",
+                            retry_after=retry_seconds,
+                        ) from e
+                    raise LLMRateLimitError(
+                        f"Gemini quota/rate limit exceeded: {err_msg}",
+                        retry_after=retry_seconds,
+                    ) from e
                 raise LLMProviderError(f"Gemini Client error ({code}): {err_msg}") from e
             except ServerError as e:
                 logger.error("Gemini ServerError", error=str(e))
@@ -213,6 +243,7 @@ class GeminiProvider(LLMProvider):
             system_instruction=sys_instruction,
             temperature=temp,
             max_output_tokens=self.default_max_tokens,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
 
         try:
@@ -235,6 +266,9 @@ class GeminiProvider(LLMProvider):
             if code in (401, 403) or "API_KEY_INVALID" in err_msg:
                 raise LLMAuthenticationError(f"Gemini authentication failed: {err_msg}") from e
             if code == 429 or "RESOURCE_EXHAUSTED" in err_msg:
+                is_daily = "GenerateRequestsPerDay" in err_msg or "daily" in err_msg.lower()
+                if is_daily:
+                    raise LLMDailyQuotaExceededError(f"DAILY_QUOTA_EXCEEDED: {err_msg}") from e
                 raise LLMRateLimitError(f"Gemini quota/rate limit exceeded: {err_msg}") from e
             raise LLMProviderError(f"Gemini Client error: {err_msg}") from e
         except Exception as e:

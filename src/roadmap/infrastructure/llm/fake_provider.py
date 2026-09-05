@@ -288,10 +288,11 @@ class FakeLLMProvider(LLMProvider):
         if response_model is RoadmapGenerationResult or issubclass(response_model, RoadmapGenerationResult):
             return self.roadmap_result  # type: ignore[return-value]
 
-        # Research-specific models
         from roadmap.agents.schemas.research import (
+            BatchEvidenceExtractionResult,
             EvidenceExtractionResult,
             ExtractedClaimDraft,
+            PageExtractionResult,
             ResearchPlan,
             ResearchQuery,
         )
@@ -305,6 +306,49 @@ class FakeLLMProvider(LLMProvider):
                     ResearchQuery(query="Unreal Engine 5 gameplay architecture documentation", query_type="resource", focus="Unreal Engine"),
                     ResearchQuery(query="game math 3D linear algebra course", query_type="resource", focus="Linear Algebra"),
                 ],
+            )
+
+        if response_model is BatchEvidenceExtractionResult or issubclass(response_model, BatchEvidenceExtractionResult):
+            return BatchEvidenceExtractionResult(  # type: ignore[return-value]
+                documents=[
+                    PageExtractionResult(
+                        page_index=0,
+                        url="https://example.com/job1",
+                        source_title="Gameplay Engineering Requirements",
+                        detected_source_type="job_posting",
+                        claims=[
+                            ExtractedClaimDraft(
+                                claim="Proficiency in modern C++ (C++17/20) and memory management is required.",
+                                related_skills=["C++"],
+                                source_type="job_posting",
+                                confidence=0.95,
+                                relevance=0.95,
+                            ),
+                            ExtractedClaimDraft(
+                                claim="Solid foundation in 3D mathematics and vector operations.",
+                                related_skills=["Linear Algebra", "Vector Math"],
+                                source_type="job_posting",
+                                confidence=0.90,
+                                relevance=0.90,
+                            ),
+                        ],
+                    ),
+                    PageExtractionResult(
+                        page_index=1,
+                        url="https://example.com/job2",
+                        source_title="Senior Unreal Developer",
+                        detected_source_type="job_posting",
+                        claims=[
+                            ExtractedClaimDraft(
+                                claim="Demonstrated architecture experience with Unreal Engine 5 gameplay frameworks.",
+                                related_skills=["Unreal Engine", "Game Loop & Architecture"],
+                                source_type="job_posting",
+                                confidence=0.90,
+                                relevance=0.92,
+                            ),
+                        ],
+                    ),
+                ]
             )
 
         if response_model is EvidenceExtractionResult or issubclass(response_model, EvidenceExtractionResult):

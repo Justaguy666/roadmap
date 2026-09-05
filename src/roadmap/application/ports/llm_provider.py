@@ -129,6 +129,14 @@ class LLMAuthenticationError(LLMProviderError):
 class LLMRateLimitError(LLMProviderError):
     """Raised when rate limits or quotas are exceeded."""
 
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class LLMDailyQuotaExceededError(LLMRateLimitError):
+    """Raised when the daily quota limit for the LLM model/project has been completely exhausted."""
+
 
 class LLMTimeoutError(LLMProviderError):
     """Raised when the LLM request times out."""

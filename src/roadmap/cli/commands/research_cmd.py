@@ -42,12 +42,17 @@ def default_research(
             raise typer.Exit(1)
 
         topic = profile.target_role or profile.target_goal
-        target_market = profile.preferred_industry or "Global / Tech Industry"
+        if profile.target_markets:
+            target_market = ", ".join(profile.target_markets)
+        elif profile.preferred_industry:
+            target_market = profile.preferred_industry
+        else:
+            target_market = "Global / Tech Industry"
 
         console.print(
             Panel(
                 f"[bold cyan]Research Target:[/bold cyan] {topic}\n"
-                f"[bold cyan]Target Market / Role:[/bold cyan] {target_market}\n"
+                f"[bold cyan]Target Markets:[/bold cyan] {target_market}\n"
                 f"[bold cyan]Market Research:[/bold cyan] {'Enabled' if market else 'Disabled'}\n"
                 f"[bold cyan]Resources Research:[/bold cyan] {'Enabled' if resources else 'Disabled'}\n"
                 f"[bold cyan]Cache Refresh:[/bold cyan] {'Forced' if refresh else 'Cached if available'}",
@@ -58,7 +63,7 @@ def default_research(
 
         if research_svc is None:
             print_error(
-                "ResearchService could not be initialized. Please configure OPENAI_API_KEY and EXA_API_KEY, "
+                "ResearchService could not be initialized. Please configure GEMINI_API_KEY / OPENAI_API_KEY and EXA_API_KEY, "
                 "or run with ROADMAP_LLM_PROVIDER=mock and ROADMAP_SEARCH_PROVIDER=mock."
             )
             raise typer.Exit(1)
@@ -82,7 +87,15 @@ def default_research(
             raise typer.Exit(1) from exc
 
         console.print()
-        print_success(f"Research completed successfully! (Status: {run.status.upper()})")
+        if run.status.lower() == "completed":
+            print_success(f"Research completed successfully! (Status: {run.status.upper()})")
+        elif run.status.lower() == "partial":
+            print_warning(
+                f"Research partially completed (Status: PARTIAL). "
+                f"Analyzed {run.source_count} sources, extracted {run.evidence_count} evidence items."
+            )
+        else:
+            print_error(f"Research failed (Status: {run.status.upper()}).")
 
         # Display Market Observations
         if market_result.skill_observations:

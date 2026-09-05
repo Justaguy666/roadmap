@@ -47,6 +47,25 @@ class EvidenceExtractionResult(BaseModel):
     claims: list[ExtractedClaimDraft] = Field(default_factory=list)
 
 
+class PageExtractionResult(BaseModel):
+    """Extraction result for an individual document within a multi-document batch."""
+
+    page_index: int = Field(ge=0, description="0-indexed document sequence in the batch")
+    url: str = Field(description="URL of the document")
+    source_title: str = Field(default="")
+    detected_source_type: str = Field(
+        default="other",
+        description="job_posting | company_career_page | official_documentation | university_curriculum | technical_article | course | other",
+    )
+    claims: list[ExtractedClaimDraft] = Field(default_factory=list)
+
+
+class BatchEvidenceExtractionResult(BaseModel):
+    """Structured extraction result across multiple batched web documents."""
+
+    documents: list[PageExtractionResult] = Field(default_factory=list)
+
+
 class MarketSkillObservation(BaseModel):
     """Empirical observation of a skill across sampled job postings."""
 

@@ -76,6 +76,15 @@ class Settings(BaseSettings):
     llm_max_tokens: int = Field(default=4096, gt=0)
     llm_max_retries: int = Field(default=3, ge=1, le=10)
 
+    # ── Rate Limiting ─────────────────────────────────────────────────────
+    llm_requests_per_minute: float = Field(
+        default=4.0,
+        ge=0.5,
+        le=60.0,
+        validation_alias=AliasChoices("ROADMAP_LLM_REQUESTS_PER_MINUTE", "LLM_REQUESTS_PER_MINUTE"),
+        description="Client-side rate limit (requests per minute)",
+    )
+
     # ── Search Provider ───────────────────────────────────────────────────
     exa_api_key: str = Field(
         default="",
@@ -93,10 +102,31 @@ class Settings(BaseSettings):
     cache_ttl_hours: int = Field(default=24, ge=1)
     cache_max_size_mb: int = Field(default=512, ge=64)
 
-    # ── Research Limits & Concurrency ──────────────────────────────────────
+    # ── Research Limits & Batching ─────────────────────────────────────────
     research_concurrency: int = Field(default=5, ge=1, le=20)
     agent_max_revisions: int = Field(default=3, ge=1, le=10)
     research_timeout_seconds: int = Field(default=120, ge=10)
+    research_max_sources: int = Field(
+        default=15,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices("ROADMAP_RESEARCH_MAX_SOURCES", "RESEARCH_MAX_SOURCES"),
+        description="Maximum number of high-value sources to deeply analyze with LLM",
+    )
+    research_batch_size: int = Field(
+        default=5,
+        ge=1,
+        le=15,
+        validation_alias=AliasChoices("ROADMAP_RESEARCH_BATCH_SIZE", "RESEARCH_BATCH_SIZE"),
+        description="Number of web pages to batch in a single LLM extraction request",
+    )
+    research_max_content_chars: int = Field(
+        default=3500,
+        ge=500,
+        le=20000,
+        validation_alias=AliasChoices("ROADMAP_RESEARCH_MAX_CONTENT_CHARS", "RESEARCH_MAX_CONTENT_CHARS"),
+        description="Maximum character budget per page during batch extraction",
+    )
 
     @field_validator("data_dir", mode="before")
     @classmethod

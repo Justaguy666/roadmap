@@ -1,6 +1,7 @@
 """
-ResearchService: Orchestrates web search, URL deduplication, fetching,
-LLM evidence extraction, deterministic source scoring, and sample calculation.
+ResearchService: Orchestrates web search, deterministic source selection,
+caching, fetching, batched LLM evidence extraction with rate-limiting,
+deterministic source scoring, and sample calculation.
 """
 
 from __future__ import annotations
@@ -14,13 +15,14 @@ from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from roadmap.agents.prompts.research import (
-    EVIDENCE_EXTRACTION_SYSTEM_PROMPT,
+    BATCH_EVIDENCE_EXTRACTION_SYSTEM_PROMPT,
     RESEARCH_PLAN_SYSTEM_PROMPT,
-    build_evidence_extraction_prompt,
+    build_batch_evidence_extraction_prompt,
     build_research_plan_prompt,
 )
 from roadmap.agents.schemas.research import (
-    EvidenceExtractionResult,
+    BatchEvidenceExtractionResult,
+    ExtractedClaimDraft,
     MarketResearchResult,
     MarketSkillObservation,
     RecommendedResourceDraft,
@@ -28,13 +30,20 @@ from roadmap.agents.schemas.research import (
     ResourceResearchResult,
 )
 from roadmap.application.ports.infrastructure import Cache, WebFetcher
-from roadmap.application.ports.llm_provider import LLMMessage, LLMProvider
+from roadmap.application.ports.llm_provider import (
+    LLMDailyQuotaExceededError,
+    LLMMessage,
+    LLMProvider,
+    LLMRateLimitError,
+)
 from roadmap.application.ports.search_provider import SearchProvider, SearchResult
 from roadmap.config.settings import settings
 from roadmap.domain.entities.source import Evidence, ResearchRun, Source
 from roadmap.domain.services.source_scorer import SourceScorer
+from roadmap.domain.services.source_selector import SourceSelector
 from roadmap.domain.services.url_normalizer import normalize_url
 from roadmap.domain.value_objects import SourceType
+from roadmap.infrastructure.llm.rate_limiter import RateLimiter
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
 from roadmap.storage.repositories.research_repository import (
@@ -47,7 +56,7 @@ logger = get_logger(__name__)
 
 
 class ResearchService:
-    """End-to-end research orchestration service."""
+    """End-to-end research orchestration service with batch extraction and quota management."""
 
     def __init__(
         self,
@@ -59,6 +68,7 @@ class ResearchService:
         evidence_repo: SqliteEvidenceRepository,
         run_repo: SqliteResearchRunRepository,
         concurrency: int = 5,
+        rate_limiter: RateLimiter | None = None,
     ) -> None:
         self.llm = llm_provider
         self.search_provider = search_provider
@@ -68,6 +78,9 @@ class ResearchService:
         self.evidence_repo = evidence_repo
         self.run_repo = run_repo
         self.concurrency = concurrency
+        self.rate_limiter = rate_limiter or RateLimiter(
+            requests_per_minute=settings.llm_requests_per_minute
+        )
 
     def execute_research(
         self,
@@ -82,14 +95,15 @@ class ResearchService:
     ) -> tuple[ResearchRun, MarketResearchResult, ResourceResearchResult]:
         """
         Execute full research run:
-        1. Plan search queries via LLM
+        1. Plan search queries via LLM (rate-limited)
         2. Query search provider with cache
         3. Deduplicate URLs
-        4. Fetch pages with bounded concurrency
-        5. Extract claims & evidence via LLM
-        6. Score sources deterministically
-        7. Persist sources, evidence, and research run
-        8. Compute market sample statistics and return results
+        4. Deterministic source ranking and diversity selection (budget capped)
+        5. Fetch pages with bounded concurrency
+        6. Batch extract claims & evidence via LLM (rate-limited, quota-aware)
+        7. Score sources deterministically
+        8. Persist sources, evidence, and research run
+        9. Compute market sample statistics and return results
         """
         def notify(msg: str) -> None:
             if progress_callback:
@@ -115,11 +129,34 @@ class ResearchService:
             LLMMessage(role="system", content=RESEARCH_PLAN_SYSTEM_PROMPT),
             LLMMessage(role="user", content=plan_user_prompt),
         ]
-        plan: ResearchPlan = self.llm.complete(
-            messages=plan_messages,
-            response_model=ResearchPlan,
-            temperature=0.2,
-        )
+
+        self.rate_limiter.acquire()
+        try:
+            plan: ResearchPlan = self.llm.complete(
+                messages=plan_messages,
+                response_model=ResearchPlan,
+                temperature=0.2,
+            )
+        except LLMDailyQuotaExceededError as qe:
+            err_msg = f"Gemini daily quota exhausted during research planning: {qe}"
+            logger.error(err_msg)
+            run.status = "failed"
+            run.errors = [err_msg]
+            run.completed_at = datetime.now(UTC)
+            self.run_repo.save(run)
+            notify("DAILY_QUOTA_EXCEEDED: Gemini quota exhausted.")
+            return (
+                run,
+                MarketResearchResult(target_role=topic, target_market=target_market, total_postings_sampled=0),
+                ResourceResearchResult(target_skills=[]),
+            )
+        except Exception as e:
+            logger.warning("Research planning failed, using fallback query list", error=str(e))
+            plan = ResearchPlan(
+                topic=topic,
+                target_market=target_market,
+                queries=[],
+            )
 
         filtered_queries = [
             q for q in plan.queries
@@ -128,7 +165,15 @@ class ResearchService:
             or (q.query_type not in ("market", "resource"))
         ]
         if not filtered_queries:
-            filtered_queries = plan.queries
+            # Generate deterministic fallback queries with target_market
+            market_suffix = f" {target_market}" if target_market else ""
+            from roadmap.agents.schemas.research import ResearchQuery
+
+            filtered_queries = [
+                ResearchQuery(query=f"{topic} requirements{market_suffix}", query_type="market", focus=topic),
+                ResearchQuery(query=f"{topic} skills job posting{market_suffix}", query_type="market", focus=topic),
+                ResearchQuery(query=f"{topic} documentation curriculum tutorial", query_type="resource", focus=topic),
+            ]
 
         run.queries = [q.query for q in filtered_queries]
         self.run_repo.save(run)
@@ -196,92 +241,183 @@ class ResearchService:
             if canon and canon not in deduped_results:
                 deduped_results[canon] = r
 
-        notify(f"Discovered {len(deduped_results)} unique sources. Fetching readable content...")
+        total_discovered = len(deduped_results)
+        max_source_budget = settings.research_max_sources
 
-        # 4. Fetch content concurrently
+        # 4. Deterministic Source Ranking & Diversity Selection
+        selected_search_results = SourceSelector.select_sources(
+            results=list(deduped_results.values()),
+            target_role=topic,
+            focus_skills=focus_skills,
+            max_sources=max_source_budget,
+            max_per_domain=3,
+        )
+
+        notify(
+            f"Search results found: {total_discovered}  |  "
+            f"Deep-analysis budget: {max_source_budget}  |  "
+            f"Selected: {len(selected_search_results)}"
+        )
+
+        # 5. Fetch content concurrently for selected high-value sources
+        notify(f"Fetching readable content for {len(selected_search_results)} sources...")
         fetched_pages: dict[str, tuple[SearchResult, str]] = {}
-        with ThreadPoolExecutor(max_workers=min(self.concurrency, len(deduped_results) or 1)) as executor:
-            future_to_url = {
-                executor.submit(self._fetch_single_page, url, res): url
-                for url, res in deduped_results.items()
+        with ThreadPoolExecutor(max_workers=min(self.concurrency, len(selected_search_results) or 1)) as executor:
+            future_to_res = {
+                executor.submit(self._fetch_single_page, res.url, res): res
+                for res in selected_search_results
             }
-            for future in as_completed(future_to_url):
-                url = future_to_url[future]
+            for future in as_completed(future_to_res):
+                res = future_to_res[future]
                 try:
-                    res, text = future.result()
+                    r, text = future.result()
                     if text:
-                        fetched_pages[url] = (res, text)
+                        canon_u = normalize_url(r.url)
+                        fetched_pages[canon_u] = (r, text)
                 except Exception as exc:
-                    err = f"Failed to fetch {url}: {exc}"
+                    err = f"Failed to fetch {res.url}: {exc}"
                     logger.debug(err)
                     errors.append(err)
 
-        # 5. Extract claims and build sources/evidence
-        notify(f"Analyzing {len(fetched_pages)} pages and extracting evidence...")
+        # 6. Batch LLM Evidence Extraction
+        page_list = list(fetched_pages.items())
+        batch_size = max(1, settings.research_batch_size)
+        batches: list[list[tuple[str, tuple[SearchResult, str]]]] = [
+            page_list[i : i + batch_size] for i in range(0, len(page_list), batch_size)
+        ]
+
+        notify(
+            f"Batching {len(page_list)} pages into {len(batches)} extraction batches "
+            f"(batch size: {batch_size})..."
+        )
+
         saved_sources: list[Source] = []
         saved_evidence: list[Evidence] = []
         source_type_counts: dict[str, int] = defaultdict(int)
+        quota_exhausted: bool = False
 
-        for url, (s_res, text) in fetched_pages.items():
-            source = self.source_repo.get_by_url(url)
-            content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        for b_idx, batch in enumerate(batches, start=1):
+            if quota_exhausted:
+                break
 
-            if not source:
-                domain = urlparse(url).netloc
-                source = Source(
-                    id=new_id(),
-                    url=url,
-                    title=s_res.title,
-                    domain=domain,
-                    source_type=SourceType.OTHER,
-                    content_hash=content_hash,
-                )
+            notify(f"Extracting evidence claims: Batch {b_idx}/{len(batches)} ({len(batch)} pages)...")
+            batch_payload: list[tuple[int, str, str, str]] = []
+            for item_idx, (url, (s_res, text)) in enumerate(batch):
+                bounded_text = text[: settings.research_max_content_chars]
+                batch_payload.append((item_idx, url, s_res.title, bounded_text))
 
-            ext_prompt = build_evidence_extraction_prompt(
-                url=url,
-                title=s_res.title,
-                text_content=text,
+            prompt_text = build_batch_evidence_extraction_prompt(
+                pages=batch_payload,
                 target_goal=topic,
+                target_market=target_market,
             )
-            ext_messages = [
-                LLMMessage(role="system", content=EVIDENCE_EXTRACTION_SYSTEM_PROMPT),
-                LLMMessage(role="user", content=ext_prompt),
+            batch_messages = [
+                LLMMessage(role="system", content=BATCH_EVIDENCE_EXTRACTION_SYSTEM_PROMPT),
+                LLMMessage(role="user", content=prompt_text),
             ]
 
+            self.rate_limiter.acquire()
+            batch_extraction: BatchEvidenceExtractionResult | None = None
+
             try:
-                extraction: EvidenceExtractionResult = self.llm.complete(
-                    messages=ext_messages,
-                    response_model=EvidenceExtractionResult,
+                batch_extraction = self.llm.complete(
+                    messages=batch_messages,
+                    response_model=BatchEvidenceExtractionResult,
                     temperature=0.1,
                 )
+            except LLMDailyQuotaExceededError as dqe:
+                err_msg = f"DAILY_QUOTA_EXCEEDED during batch {b_idx}: {dqe}"
+                logger.error(err_msg)
+                errors.append(err_msg)
+                quota_exhausted = True
+                notify("Gemini daily quota exhausted. Stopping further extraction.")
+                break
+            except LLMRateLimitError as rle:
+                # Check for retry after delay
+                logger.warning("Rate limit encountered during batch extraction", error=str(rle))
+                if rle.retry_after and rle.retry_after < 60:
+                    notify(f"Rate limited. Waiting {int(rle.retry_after)}s before retry...")
+                    self.rate_limiter.wait_for(rle.retry_after)
+                    try:
+                        self.rate_limiter.acquire()
+                        batch_extraction = self.llm.complete(
+                            messages=batch_messages,
+                            response_model=BatchEvidenceExtractionResult,
+                            temperature=0.1,
+                        )
+                    except Exception as retry_exc:
+                        err_msg = f"Batch extraction retry failed: {retry_exc}"
+                        logger.error(err_msg)
+                        errors.append(err_msg)
+                        if isinstance(retry_exc, LLMDailyQuotaExceededError):
+                            quota_exhausted = True
+                            break
+                else:
+                    errors.append(f"Rate limit exceeded on batch {b_idx}: {rle}")
+                    quota_exhausted = True
+                    break
             except Exception as exc:
-                errors.append(f"Evidence extraction failed for {url}: {exc}")
+                err_msg = f"Batch extraction failed for batch {b_idx}: {exc}"
+                logger.error(err_msg)
+                errors.append(err_msg)
                 continue
 
-            detected_type = extraction.detected_source_type.lower().strip()
-            for st in SourceType:
-                if st.value == detected_type:
-                    source.source_type = st
-                    break
+            # Process extracted documents from this batch
+            if batch_extraction and batch_extraction.documents:
+                # Map extracted results by index or url
+                extracted_map: dict[str, tuple[str, list[ExtractedClaimDraft]]] = {}
+                for doc in batch_extraction.documents:
+                    norm_u = normalize_url(doc.url)
+                    extracted_map[norm_u] = (doc.detected_source_type, doc.claims)
 
-            source.reliability_score = SourceScorer.score(source)
-            self.source_repo.save(source)
-            saved_sources.append(source)
-            source_type_counts[source.source_type.value] += 1
+                for item_idx, (url, (s_res, text)) in enumerate(batch):
+                    norm_u = normalize_url(url)
+                    det_type, claims = extracted_map.get(norm_u, ("other", []))
 
-            for claim_draft in extraction.claims:
-                ev = Evidence(
-                    id=new_id(),
-                    source_id=source.id,
-                    extracted_claim=claim_draft.claim,
-                    relevance=claim_draft.relevance,
-                    confidence=claim_draft.confidence,
-                    associated_skill_names=claim_draft.related_skills,
-                )
-                self.evidence_repo.save(ev)
-                saved_evidence.append(ev)
+                    # If not matched by URL, check by item_idx
+                    if not claims and item_idx < len(batch_extraction.documents):
+                        doc = batch_extraction.documents[item_idx]
+                        det_type = doc.detected_source_type
+                        claims = doc.claims
 
-        # 6. Compute Market Statistics (Observed sample)
+                    source = self.source_repo.get_by_url(url)
+                    content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+                    if not source:
+                        domain = urlparse(url).netloc
+                        source = Source(
+                            id=new_id(),
+                            url=url,
+                            title=s_res.title,
+                            domain=domain,
+                            source_type=SourceType.OTHER,
+                            content_hash=content_hash,
+                        )
+
+                    detected_clean = det_type.lower().strip()
+                    for st in SourceType:
+                        if st.value == detected_clean:
+                            source.source_type = st
+                            break
+
+                    source.reliability_score = SourceScorer.score(source)
+                    self.source_repo.save(source)
+                    saved_sources.append(source)
+                    source_type_counts[source.source_type.value] += 1
+
+                    for claim_draft in claims:
+                        ev = Evidence(
+                            id=new_id(),
+                            source_id=source.id,
+                            extracted_claim=claim_draft.claim,
+                            relevance=claim_draft.relevance,
+                            confidence=claim_draft.confidence,
+                            associated_skill_names=claim_draft.related_skills,
+                        )
+                        self.evidence_repo.save(ev)
+                        saved_evidence.append(ev)
+
+        # 7. Compute Market Statistics (Observed sample)
         skill_mentions: dict[str, list[str]] = defaultdict(list)
         job_postings_sample_count = source_type_counts.get("job_posting", 0) + source_type_counts.get("company_career_page", 0)
         effective_sample_size = max(1, job_postings_sample_count or len(saved_sources))
@@ -319,7 +455,7 @@ class ResearchService:
             skill_observations=skill_observations,
         )
 
-        # 7. Build Resource Recommendations
+        # 8. Build Resource Recommendations
         resource_drafts: list[RecommendedResourceDraft] = []
         for src in saved_sources:
             if src.source_type in (
@@ -360,15 +496,30 @@ class ResearchService:
             resources=resource_drafts,
         )
 
-        # 8. Complete and persist research run
-        run.status = "completed" if saved_sources else ("partial" if errors else "failed")
+        # 9. Determine Status & Persist Run
+        target_count = len(selected_search_results)
+        if len(saved_sources) == 0 or len(saved_evidence) == 0:
+            status = "failed"
+        elif quota_exhausted or (target_count > 0 and len(saved_sources) < int(target_count * 0.6)):
+            status = "partial"
+        else:
+            status = "completed"
+
+        run.status = status
         run.source_count = len(saved_sources)
         run.evidence_count = len(saved_evidence)
         run.errors = errors
         run.completed_at = datetime.now(UTC)
         self.run_repo.save(run)
 
-        notify(f"Research complete: {run.source_count} sources, {run.evidence_count} evidence items saved.")
+        if status == "partial":
+            notify(
+                f"Research finished with PARTIAL status: {run.source_count}/{target_count} sources analyzed, "
+                f"{run.evidence_count} evidence items saved (quota or rate limit reached)."
+            )
+        else:
+            notify(f"Research complete: {run.source_count} sources, {run.evidence_count} evidence items saved.")
+
         return run, market_result, resource_result
 
     def _fetch_single_page(self, url: str, search_res: SearchResult) -> tuple[SearchResult, str]:
