@@ -1,0 +1,61 @@
+# Generic / OS artifacts
+.DS_Store
+Thumbs.db
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+uv.lock
+
+# Environment files — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache/
+*.cache/
+diskcache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Type checking / linting
+.mypy_cache/
+.ruff_cache/
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Roadmap data (user data — never commit)
+~/.roadmap/
+
+# Logs
+*.log
+logs/
