@@ -122,7 +122,7 @@ class RoadmapPhaseDraft(BaseModel):
     )
     estimated_duration_weeks: float = Field(
         default=4.0,
-        gt=0.0,
+        ge=1.0,
         le=104.0,
         description="Estimated duration in weeks",
     )

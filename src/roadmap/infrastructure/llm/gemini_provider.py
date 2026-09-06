@@ -11,7 +11,7 @@ import contextlib
 import json
 import re
 import time
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from google import genai
 from google.genai import types
@@ -90,6 +90,48 @@ class GeminiProvider(LLMProvider):
         sys_instruction = "\n\n".join(system_prompts) if system_prompts else None
         return sys_instruction, contents
 
+    @staticmethod
+    def _sanitize_schema_node(node: Any) -> Any:
+        """
+        Recursively remove or convert JSON Schema keywords unsupported by Google GenAI Schema.
+        Specifically, OpenAPI 3.0 / GenAI types.Schema does not support exclusiveMinimum/exclusiveMaximum.
+        """
+        if isinstance(node, dict):
+            sanitized: dict[str, Any] = {}
+            for k, v in node.items():
+                if k == "exclusiveMinimum":
+                    sanitized["minimum"] = v
+                elif k == "exclusiveMaximum":
+                    sanitized["maximum"] = v
+                else:
+                    sanitized[k] = GeminiProvider._sanitize_schema_node(v)
+            return sanitized
+        if isinstance(node, list):
+            return [GeminiProvider._sanitize_schema_node(item) for item in node]
+        return node
+
+    @classmethod
+    def _prepare_response_schema(cls, response_model: type[BaseModel]) -> types.Schema | type[BaseModel]:
+        """
+        Produce a Google GenAI types.Schema sanitized of keywords that cause GenAI validation errors.
+        """
+        try:
+            from google.genai._transformers import t_schema
+
+            raw_schema = response_model.model_json_schema()
+            sanitized = cls._sanitize_schema_node(raw_schema)
+            converted = t_schema(None, sanitized)
+            if isinstance(converted, types.Schema):
+                return converted
+            return response_model
+        except Exception as e:
+            logger.warning(
+                "Failed to transform sanitized schema to types.Schema, falling back to model",
+                error=str(e),
+                model=response_model.__name__,
+            )
+            return response_model
+
     def complete(
         self,
         messages: list[LLMMessage],
@@ -114,14 +156,23 @@ class GeminiProvider(LLMProvider):
             num_messages=len(messages),
         )
 
-        config = types.GenerateContentConfig(
-            system_instruction=sys_instruction,
-            temperature=temp,
-            max_output_tokens=tokens,
-            response_mime_type="application/json",
-            response_schema=response_model,
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-        )
+        try:
+            prepared_schema = self._prepare_response_schema(response_model)
+            config = types.GenerateContentConfig(
+                system_instruction=sys_instruction,
+                temperature=temp,
+                max_output_tokens=tokens,
+                response_mime_type="application/json",
+                response_schema=prepared_schema,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            )
+        except Exception as e:
+            logger.error("Failed to configure Gemini content generation", error=str(e))
+            raise LLMValidationError(
+                model_name=self.model,
+                attempts=1,
+                last_error=f"Invalid schema configuration for Gemini: {e}",
+            ) from e
 
         last_error: Exception | None = None
         for attempt in range(1, retries + 1):
