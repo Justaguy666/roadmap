@@ -3,6 +3,8 @@
 from roadmap.domain.value_objects.enums import (
     BudgetPreference,
     DependencyType,
+    FailureCategory,
+    LLMWorkflow,
     Priority,
     ResourceType,
     SkillLevel,
@@ -13,6 +15,8 @@ from roadmap.domain.value_objects.enums import (
 __all__ = [
     "BudgetPreference",
     "DependencyType",
+    "FailureCategory",
+    "LLMWorkflow",
     "Priority",
     "ResourceType",
     "SkillLevel",

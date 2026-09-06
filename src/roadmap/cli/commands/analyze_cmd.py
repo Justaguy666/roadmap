@@ -9,7 +9,12 @@ from __future__ import annotations
 import typer
 from rich.table import Table
 
-from roadmap.application.ports.llm_provider import LLMProviderError, MissingAPIKeyError
+from roadmap.application.ports.llm_provider import (
+    ApplicationBudgetExceededError,
+    LLMProviderError,
+    MissingAPIKeyError,
+    ProviderQuotaUnavailableError,
+)
 from roadmap.cli.container import get_generator_context, initialize_database
 from roadmap.cli.display.console import (
     console,
@@ -115,7 +120,33 @@ def analyze() -> None:
 
     except MissingAPIKeyError as e:
         print_error(str(e))
-        print_info("Set your key in .env or run with a mock provider: ROADMAP_LLM_PROVIDER=fake")
+        print_info("Set your key in .env or run with a mock provider: ROADMAP_LLM_PROVIDER=mock")
+        raise typer.Exit(1) from e
+    except ApplicationBudgetExceededError as e:
+        console.print()
+        print_error(f"LLM application budget exhausted: {e}")
+        console.print()
+        console.print("  [bold]Workflow:[/bold] generation (goal_analysis)")
+        console.print(f"  [bold]Allocated limit:[/bold] {e.allocated}")
+        console.print(f"  [bold]Used in window:[/bold] {e.used}")
+        console.print(f"  [bold]Required:[/bold] {e.required}")
+        console.print()
+        console.print("  [bold yellow]Suggested next actions:[/bold yellow]")
+        console.print("  • Wait for the budget window to reset (check with `roadmap quota`)")
+        console.print("  • Run with mock/offline mode: [dim]ROADMAP_LLM_PROVIDER=mock[/dim]")
+        console.print()
+        raise typer.Exit(1) from e
+    except ProviderQuotaUnavailableError as e:
+        console.print()
+        print_error(f"Provider quota unavailable: {e}")
+        console.print()
+        console.print(f"  [bold]Provider:[/bold] {e.provider}")
+        console.print(f"  [bold]Model:[/bold] {e.model}")
+        console.print()
+        console.print("  [bold yellow]Suggested next actions:[/bold yellow]")
+        console.print("  • The provider daily quota has been exhausted. Run `roadmap quota` to inspect status.")
+        console.print("  • Switch provider or use offline mode ([dim]ROADMAP_LLM_PROVIDER=mock[/dim]).")
+        console.print()
         raise typer.Exit(1) from e
     except LLMProviderError as e:
         print_error(f"LLM Provider Error: {e}")

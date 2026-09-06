@@ -46,8 +46,10 @@ from roadmap.application.ports.repositories import (
     SkillRepository,
     SourceRepository,
 )
+from roadmap.application.services.llm_budget_manager import LLMBudgetManager
 from roadmap.application.services.roadmap_revision_loop import RoadmapRevisionLoop
 from roadmap.application.use_cases.analyze_goal import AnalyzeGoalUseCase
+from roadmap.config.settings import settings
 from roadmap.domain.entities.evidence_aggregation import (
     MarketObservation,
     SkillEvidenceSummary,
@@ -66,6 +68,7 @@ from roadmap.domain.services.roadmap_decision_service import RoadmapDecisionServ
 from roadmap.domain.services.roadmap_validator import RoadmapValidator, ValidationResult
 from roadmap.domain.services.skill_gap_analyzer import SkillGapAnalyzer
 from roadmap.domain.value_objects import DependencyType, SkillStatus
+from roadmap.domain.value_objects.enums import FailureCategory, LLMWorkflow
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
 
@@ -87,6 +90,7 @@ class GenerateRoadmapUseCase:
         source_repo: SourceRepository | None = None,
         recommendation_repo: RecommendationRepository | None = None,
         max_retries: int = 3,
+        budget_manager: LLMBudgetManager | None = None,
     ) -> None:
         self.llm_provider = llm_provider
         self.profile_repo = profile_repo
@@ -96,16 +100,18 @@ class GenerateRoadmapUseCase:
         self.source_repo = source_repo
         self.recommendation_repo = recommendation_repo
         self.max_retries = max_retries
+        self.budget_manager = budget_manager
 
-        self.goal_analyzer = AnalyzeGoalUseCase(llm_provider)
+        self.goal_analyzer = AnalyzeGoalUseCase(llm_provider, budget_manager=budget_manager)
         self.gap_analyzer = SkillGapAnalyzer()
         self.priority_calculator = PriorityCalculator()
         self.validator = RoadmapValidator()
-        self.evaluator = RoadmapEvaluator(llm_provider)
+        self.evaluator = RoadmapEvaluator(llm_provider, budget_manager=budget_manager)
         self.revision_loop = RoadmapRevisionLoop(
             llm_provider=llm_provider,
             evaluator=self.evaluator,
             max_iterations=max_retries,
+            budget_manager=budget_manager,
         )
 
     def execute(
@@ -331,11 +337,42 @@ class GenerateRoadmapUseCase:
             LLMMessage(role="user", content=user_prompt),
         ]
 
-        draft: RoadmapGenerationResult = self.llm_provider.complete(
-            messages=messages,
-            response_model=RoadmapGenerationResult,
-        )
-        return draft
+        reservation = None
+        if self.budget_manager:
+            reservation = self.budget_manager.reserve(
+                workflow=LLMWorkflow.GENERATION,
+                operation="candidate_generation",
+                estimated_requests=1,
+                correlation_id=profile.id,
+            )
+
+        try:
+            draft: RoadmapGenerationResult = self.llm_provider.complete(
+                messages=messages,
+                response_model=RoadmapGenerationResult,
+            )
+            if self.budget_manager and reservation:
+                self.budget_manager.commit(
+                    reservation=reservation,
+                    success=True,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                )
+            return draft
+        except Exception as exc:
+            if self.budget_manager and reservation:
+                fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                self.budget_manager.commit(
+                    reservation=reservation,
+                    success=False,
+                    failure_category=fc,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                    error_message=str(exc),
+                )
+            raise
 
     def _compute_skill_gaps(
         self,

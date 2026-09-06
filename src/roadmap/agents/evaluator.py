@@ -13,6 +13,9 @@ from roadmap.agents.prompts.evaluator import (
 )
 from roadmap.agents.schemas.evaluator import RoadmapEvaluationResult
 from roadmap.application.ports.llm_provider import LLMMessage, LLMProvider
+from roadmap.application.services.llm_budget_manager import LLMBudgetManager
+from roadmap.config.settings import settings
+from roadmap.domain.value_objects.enums import FailureCategory, LLMWorkflow
 from roadmap.shared.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,8 +24,13 @@ logger = get_logger(__name__)
 class RoadmapEvaluator:
     """Evaluates candidate roadmaps for structural, evidence, and pedagogical soundness."""
 
-    def __init__(self, llm_provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        budget_manager: LLMBudgetManager | None = None,
+    ) -> None:
         self.llm = llm_provider
+        self.budget_manager = budget_manager
 
     def evaluate(
         self,
@@ -57,10 +65,39 @@ class RoadmapEvaluator:
             det_errors=len(det_errors),
         )
 
-        result: RoadmapEvaluationResult = self.llm.complete(
-            messages=messages,
-            response_model=RoadmapEvaluationResult,
-            temperature=0.1,
-        )
+        reservation = None
+        if self.budget_manager:
+            reservation = self.budget_manager.reserve(
+                workflow=LLMWorkflow.EVALUATION,
+                operation="candidate_evaluation",
+                estimated_requests=1,
+            )
 
-        return result
+        try:
+            result: RoadmapEvaluationResult = self.llm.complete(
+                messages=messages,
+                response_model=RoadmapEvaluationResult,
+                temperature=0.1,
+            )
+            if self.budget_manager and reservation:
+                self.budget_manager.commit(
+                    reservation=reservation,
+                    success=True,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                )
+            return result
+        except Exception as exc:
+            if self.budget_manager and reservation:
+                fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                self.budget_manager.commit(
+                    reservation=reservation,
+                    success=False,
+                    failure_category=fc,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                    error_message=str(exc),
+                )
+            raise

@@ -21,10 +21,13 @@ from roadmap.agents.schemas.evaluator import RoadmapEvaluationResult
 from roadmap.agents.schemas.roadmap_generation import RoadmapGenerationResult
 from roadmap.application.graph.builder import SkillGraphBuilder
 from roadmap.application.ports.llm_provider import LLMMessage, LLMProvider
+from roadmap.application.services.llm_budget_manager import LLMBudgetManager
+from roadmap.config.settings import settings
 from roadmap.domain.entities.evidence_aggregation import SkillEvidenceSummary
 from roadmap.domain.entities.skill import SkillDependency, SkillNode
 from roadmap.domain.entities.user_profile import UserProfile
 from roadmap.domain.services.roadmap_validator import RoadmapValidator
+from roadmap.domain.value_objects.enums import FailureCategory, LLMWorkflow
 from roadmap.shared.logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,10 +41,12 @@ class RoadmapRevisionLoop:
         llm_provider: LLMProvider,
         evaluator: RoadmapEvaluator,
         max_iterations: int = 3,
+        budget_manager: LLMBudgetManager | None = None,
     ) -> None:
         self.llm = llm_provider
         self.evaluator = evaluator
         self.max_iterations = max_iterations
+        self.budget_manager = budget_manager
 
     def run_loop(
         self,
@@ -201,14 +206,49 @@ class RoadmapRevisionLoop:
                 LLMMessage(role="user", content=revision_prompt),
             ]
 
+            reservation = None
+            if self.budget_manager:
+                try:
+                    reservation = self.budget_manager.reserve(
+                        workflow=LLMWorkflow.GENERATION,
+                        operation=f"revision_cycle_{iteration}",
+                        estimated_requests=1,
+                    )
+                except Exception as b_exc:
+                    warn = f"Revision budget exhausted at cycle {iteration}: {b_exc}. Stopping revision loop."
+                    warnings.append(warn)
+                    logger.warning(warn)
+                    if progress_callback:
+                        progress_callback(warn)
+                    break
+
             try:
                 revised_draft: RoadmapGenerationResult = self.llm.complete(
                     messages=rev_messages,
                     response_model=RoadmapGenerationResult,
                     temperature=0.2,
                 )
+                if self.budget_manager and reservation:
+                    self.budget_manager.commit(
+                        reservation=reservation,
+                        success=True,
+                        provider=settings.llm_provider,
+                        model=settings.llm_model or "default",
+                        actual_requests=1,
+                    )
                 current_candidate = revised_draft
             except Exception as exc:
+                if self.budget_manager and reservation:
+                    fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                    self.budget_manager.commit(
+                        reservation=reservation,
+                        success=False,
+                        failure_category=fc,
+                        provider=settings.llm_provider,
+                        model=settings.llm_model or "default",
+                        actual_requests=1,
+                        error_message=str(exc),
+                    )
                 warn = f"Revision LLM call failed in iteration {iteration}: {exc}. Preserving prior candidate."
                 warnings.append(warn)
                 logger.warning(warn)

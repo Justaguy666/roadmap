@@ -28,6 +28,7 @@ from roadmap.cli.commands import (
     init_cmd,
     profile_cmd,
     progress_cmd,
+    quota_cmd,
     research_cmd,
     show_cmd,
     sources_cmd,
@@ -52,6 +53,7 @@ app.command(name="analyze", help="Analyze your career goal to infer target compe
 app.command(name="generate", help="Generate a personalized, validated learning roadmap using AI.")(generate_cmd.generate)
 app.command(name="show", help="Display the current roadmap overview or phase curriculum.")(show_cmd.show)
 app.command(name="progress", help="Show overall learning progress across all phases.")(progress_cmd.progress)
+app.command(name="quota", help="Display LLM application request budget and provider health.")(quota_cmd.quota)
 app.command(name="why", help="Explain why a skill is included, prioritized, or postponed.")(stub_commands.why)
 
 # ── Command groups & functional subcommands ──────────────────────────────────

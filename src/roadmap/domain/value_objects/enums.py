@@ -162,3 +162,24 @@ class DependencyType(str, Enum):
     COMPLEMENTARY = "complementary"  # Complementary skill relationship
     SPECIALIZATION = "specialization"  # Advanced elective or niche specialization
     OPTIONAL = "optional"       # Nice to have before
+
+
+class FailureCategory(str, Enum):
+    """Standardized failure categories for LLM requests and budget accounting."""
+
+    APPLICATION_BUDGET_EXCEEDED = "APPLICATION_BUDGET_EXCEEDED"
+    PROVIDER_DAILY_QUOTA_EXCEEDED = "PROVIDER_DAILY_QUOTA_EXCEEDED"
+    PROVIDER_RATE_LIMITED = "PROVIDER_RATE_LIMITED"
+    TRANSIENT_PROVIDER_ERROR = "TRANSIENT_PROVIDER_ERROR"
+    AUTHENTICATION_ERROR = "AUTHENTICATION_ERROR"
+    INVALID_REQUEST = "INVALID_REQUEST"
+    UNKNOWN_PROVIDER_ERROR = "UNKNOWN_PROVIDER_ERROR"
+
+
+class LLMWorkflow(str, Enum):
+    """Workflows that consume LLM request budget."""
+
+    RESEARCH = "research"
+    GENERATION = "generation"
+    EVALUATION = "evaluation"
+    OTHER = "other"

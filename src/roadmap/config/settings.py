@@ -76,13 +76,49 @@ class Settings(BaseSettings):
     llm_max_tokens: int = Field(default=4096, gt=0)
     llm_max_retries: int = Field(default=3, ge=1, le=10)
 
-    # ── Rate Limiting ─────────────────────────────────────────────────────
+    # ── Rate Limiting & Budgets ───────────────────────────────────────────
     llm_requests_per_minute: float = Field(
         default=4.0,
         ge=0.5,
         le=60.0,
         validation_alias=AliasChoices("ROADMAP_LLM_REQUESTS_PER_MINUTE", "LLM_REQUESTS_PER_MINUTE"),
         description="Client-side rate limit (requests per minute)",
+    )
+    daily_llm_budget: int = Field(
+        default=15,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_DAILY_LLM_BUDGET", "DAILY_LLM_BUDGET"),
+        description="Global daily application request budget",
+    )
+    research_llm_budget: int = Field(
+        default=5,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_RESEARCH_LLM_BUDGET", "RESEARCH_LLM_BUDGET"),
+        description="Daily request budget for research workflow",
+    )
+    generation_llm_budget: int = Field(
+        default=5,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_GENERATION_LLM_BUDGET", "GENERATION_LLM_BUDGET"),
+        description="Daily request budget for generation workflow",
+    )
+    evaluation_llm_budget: int = Field(
+        default=5,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_EVALUATION_LLM_BUDGET", "EVALUATION_LLM_BUDGET"),
+        description="Daily request budget for evaluation/revision workflow",
+    )
+    llm_budget_window_hours: int = Field(
+        default=24,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_LLM_BUDGET_WINDOW_HOURS", "LLM_BUDGET_WINDOW_HOURS"),
+        description="Sliding window duration in hours for application budget accounting",
+    )
+    llm_provider_cooldown_seconds: int = Field(
+        default=3600,
+        ge=60,
+        validation_alias=AliasChoices("ROADMAP_LLM_PROVIDER_COOLDOWN_SECONDS", "LLM_PROVIDER_COOLDOWN_SECONDS"),
+        description="Cooldown duration when provider daily quota is exhausted and reset time is unknown",
     )
 
     # ── Search Provider ───────────────────────────────────────────────────

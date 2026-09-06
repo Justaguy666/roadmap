@@ -37,12 +37,14 @@ from roadmap.application.ports.llm_provider import (
     LLMRateLimitError,
 )
 from roadmap.application.ports.search_provider import SearchProvider, SearchResult
+from roadmap.application.services.llm_budget_manager import LLMBudgetManager
 from roadmap.config.settings import settings
 from roadmap.domain.entities.source import Evidence, ResearchRun, Source
 from roadmap.domain.services.source_scorer import SourceScorer
 from roadmap.domain.services.source_selector import SourceSelector
 from roadmap.domain.services.url_normalizer import normalize_url
 from roadmap.domain.value_objects import SourceType
+from roadmap.domain.value_objects.enums import FailureCategory, LLMWorkflow
 from roadmap.infrastructure.llm.rate_limiter import RateLimiter
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
@@ -69,6 +71,7 @@ class ResearchService:
         run_repo: SqliteResearchRunRepository,
         concurrency: int = 5,
         rate_limiter: RateLimiter | None = None,
+        budget_manager: LLMBudgetManager | None = None,
     ) -> None:
         self.llm = llm_provider
         self.search_provider = search_provider
@@ -81,6 +84,7 @@ class ResearchService:
         self.rate_limiter = rate_limiter or RateLimiter(
             requests_per_minute=settings.llm_requests_per_minute
         )
+        self.budget_manager = budget_manager
 
     def execute_research(
         self,
@@ -120,6 +124,7 @@ class ResearchService:
 
         # 1. Plan queries
         notify("Formulating research plan...")
+        errors: list[str] = []
         plan_user_prompt = build_research_plan_prompt(
             topic=topic,
             target_market=target_market,
@@ -130,6 +135,30 @@ class ResearchService:
             LLMMessage(role="user", content=plan_user_prompt),
         ]
 
+        plan_res = None
+        if self.budget_manager:
+            try:
+                plan_res = self.budget_manager.reserve(
+                    workflow=LLMWorkflow.RESEARCH,
+                    operation="query_planning",
+                    estimated_requests=1,
+                    correlation_id=run.id,
+                )
+            except Exception as b_err:
+                err_msg = f"Research budget exhausted before query planning: {b_err}"
+                logger.warning(err_msg)
+                errors.append(err_msg)
+                run.status = "failed"
+                run.errors = errors
+                run.completed_at = datetime.now(UTC)
+                self.run_repo.save(run)
+                notify(err_msg)
+                return (
+                    run,
+                    MarketResearchResult(target_role=topic, target_market=target_market, total_postings_sampled=0),
+                    ResourceResearchResult(target_skills=[]),
+                )
+
         self.rate_limiter.acquire()
         try:
             plan: ResearchPlan = self.llm.complete(
@@ -137,9 +166,27 @@ class ResearchService:
                 response_model=ResearchPlan,
                 temperature=0.2,
             )
+            if self.budget_manager and plan_res:
+                self.budget_manager.commit(
+                    reservation=plan_res,
+                    success=True,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                )
         except LLMDailyQuotaExceededError as qe:
             err_msg = f"Gemini daily quota exhausted during research planning: {qe}"
             logger.error(err_msg)
+            if self.budget_manager and plan_res:
+                self.budget_manager.commit(
+                    reservation=plan_res,
+                    success=False,
+                    failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                    error_message=str(qe),
+                )
             run.status = "failed"
             run.errors = [err_msg]
             run.completed_at = datetime.now(UTC)
@@ -152,6 +199,17 @@ class ResearchService:
             )
         except Exception as e:
             logger.warning("Research planning failed, using fallback query list", error=str(e))
+            if self.budget_manager and plan_res:
+                fc = getattr(e, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                self.budget_manager.commit(
+                    reservation=plan_res,
+                    success=False,
+                    failure_category=fc,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                    error_message=str(e),
+                )
             plan = ResearchPlan(
                 topic=topic,
                 target_market=target_market,
@@ -181,7 +239,6 @@ class ResearchService:
         # 2. Search
         notify(f"Executing {len(filtered_queries)} targeted search queries...")
         raw_results: list[SearchResult] = []
-        errors: list[str] = []
 
         for q in filtered_queries:
             cache_key = f"search:{self.search_provider.__class__.__name__}:{q.query}"
@@ -286,6 +343,24 @@ class ResearchService:
             page_list[i : i + batch_size] for i in range(0, len(page_list), batch_size)
         ]
 
+        # Check and clamp batches against remaining research budget if manager is available
+        if self.budget_manager and batches:
+            window_start = self.budget_manager._get_window_start()
+            wf_used = self.budget_manager.repository.count_requests_since(window_start, workflow=LLMWorkflow.RESEARCH)
+            wf_limit = self.budget_manager.workflow_budgets.get(LLMWorkflow.RESEARCH, self.budget_manager.daily_budget)
+            remaining_budget = max(0, wf_limit - wf_used)
+            if remaining_budget == 0:
+                warn_budget = f"Research application budget exhausted ({wf_used}/{wf_limit} used). Skipping deep extraction."
+                logger.warning(warn_budget)
+                errors.append(warn_budget)
+                notify(warn_budget)
+                batches = []
+            elif len(batches) > remaining_budget:
+                notify(
+                    f"Clamping extraction batches from {len(batches)} down to remaining research budget ({remaining_budget})..."
+                )
+                batches = batches[:remaining_budget]
+
         notify(
             f"Batching {len(page_list)} pages into {len(batches)} extraction batches "
             f"(batch size: {batch_size})..."
@@ -316,6 +391,22 @@ class ResearchService:
                 LLMMessage(role="user", content=prompt_text),
             ]
 
+            batch_res = None
+            if self.budget_manager:
+                try:
+                    batch_res = self.budget_manager.reserve(
+                        workflow=LLMWorkflow.RESEARCH,
+                        operation=f"batch_extraction_{b_idx}",
+                        estimated_requests=1,
+                        correlation_id=run.id,
+                    )
+                except Exception as b_err:
+                    err_msg = f"Research budget exhausted before batch {b_idx}: {b_err}"
+                    logger.warning(err_msg)
+                    errors.append(err_msg)
+                    notify(err_msg)
+                    break
+
             self.rate_limiter.acquire()
             batch_extraction: BatchEvidenceExtractionResult | None = None
 
@@ -325,11 +416,29 @@ class ResearchService:
                     response_model=BatchEvidenceExtractionResult,
                     temperature=0.1,
                 )
+                if self.budget_manager and batch_res:
+                    self.budget_manager.commit(
+                        reservation=batch_res,
+                        success=True,
+                        provider=settings.llm_provider,
+                        model=settings.llm_model or "default",
+                        actual_requests=1,
+                    )
             except LLMDailyQuotaExceededError as dqe:
                 err_msg = f"DAILY_QUOTA_EXCEEDED during batch {b_idx}: {dqe}"
                 logger.error(err_msg)
                 errors.append(err_msg)
                 quota_exhausted = True
+                if self.budget_manager and batch_res:
+                    self.budget_manager.commit(
+                        reservation=batch_res,
+                        success=False,
+                        failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED,
+                        provider=settings.llm_provider,
+                        model=settings.llm_model or "default",
+                        actual_requests=1,
+                        error_message=str(dqe),
+                    )
                 notify("Gemini daily quota exhausted. Stopping further extraction.")
                 break
             except LLMRateLimitError as rle:
@@ -345,21 +454,61 @@ class ResearchService:
                             response_model=BatchEvidenceExtractionResult,
                             temperature=0.1,
                         )
+                        if self.budget_manager and batch_res:
+                            self.budget_manager.commit(
+                                reservation=batch_res,
+                                success=True,
+                                provider=settings.llm_provider,
+                                model=settings.llm_model or "default",
+                                actual_requests=1,
+                            )
                     except Exception as retry_exc:
                         err_msg = f"Batch extraction retry failed: {retry_exc}"
                         logger.error(err_msg)
                         errors.append(err_msg)
-                        if isinstance(retry_exc, LLMDailyQuotaExceededError):
+                        is_dq = isinstance(retry_exc, LLMDailyQuotaExceededError)
+                        if self.budget_manager and batch_res:
+                            self.budget_manager.commit(
+                                reservation=batch_res,
+                                success=False,
+                                failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED if is_dq else FailureCategory.PROVIDER_RATE_LIMITED,
+                                provider=settings.llm_provider,
+                                model=settings.llm_model or "default",
+                                actual_requests=1,
+                                error_message=str(retry_exc),
+                            )
+                        if is_dq:
                             quota_exhausted = True
                             break
                 else:
                     errors.append(f"Rate limit exceeded on batch {b_idx}: {rle}")
                     quota_exhausted = True
+                    if self.budget_manager and batch_res:
+                        self.budget_manager.commit(
+                            reservation=batch_res,
+                            success=False,
+                            failure_category=FailureCategory.PROVIDER_RATE_LIMITED,
+                            provider=settings.llm_provider,
+                            model=settings.llm_model or "default",
+                            actual_requests=1,
+                            error_message=str(rle),
+                        )
                     break
             except Exception as exc:
                 err_msg = f"Batch extraction failed for batch {b_idx}: {exc}"
                 logger.error(err_msg)
                 errors.append(err_msg)
+                if self.budget_manager and batch_res:
+                    fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                    self.budget_manager.commit(
+                        reservation=batch_res,
+                        success=False,
+                        failure_category=fc,
+                        provider=settings.llm_provider,
+                        model=settings.llm_model or "default",
+                        actual_requests=1,
+                        error_message=str(exc),
+                    )
                 continue
 
             # Process extracted documents from this batch

@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-import sqlmodel
 from alembic import op
 ${imports if imports else ""}
 

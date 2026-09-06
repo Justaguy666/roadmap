@@ -15,8 +15,11 @@ from roadmap.agents.prompts.goal_analysis import (
 )
 from roadmap.agents.schemas.goal_analysis import GoalAnalysisResult
 from roadmap.application.ports.llm_provider import LLMMessage, LLMProvider
+from roadmap.application.services.llm_budget_manager import LLMBudgetManager
+from roadmap.config.settings import settings
 from roadmap.domain.entities.goal import Competency, Goal
 from roadmap.domain.entities.user_profile import UserProfile
+from roadmap.domain.value_objects.enums import FailureCategory, LLMWorkflow
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
 
@@ -29,8 +32,13 @@ class AnalyzeGoalUseCase:
     Calls LLMProvider to infer the structured competency model.
     """
 
-    def __init__(self, llm_provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        budget_manager: LLMBudgetManager | None = None,
+    ) -> None:
         self.llm_provider = llm_provider
+        self.budget_manager = budget_manager
 
     def execute(self, profile: UserProfile) -> GoalAnalysisResult:
         """
@@ -49,10 +57,41 @@ class AnalyzeGoalUseCase:
             LLMMessage.user(user_content),
         ]
 
-        result: GoalAnalysisResult = self.llm_provider.complete(
-            messages=messages,
-            response_model=GoalAnalysisResult,
-        )
+        reservation = None
+        if self.budget_manager:
+            reservation = self.budget_manager.reserve(
+                workflow=LLMWorkflow.GENERATION,
+                operation="goal_analysis",
+                estimated_requests=1,
+                correlation_id=profile.id,
+            )
+
+        try:
+            result: GoalAnalysisResult = self.llm_provider.complete(
+                messages=messages,
+                response_model=GoalAnalysisResult,
+            )
+            if self.budget_manager and reservation:
+                self.budget_manager.commit(
+                    reservation=reservation,
+                    success=True,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                )
+        except Exception as exc:
+            if self.budget_manager and reservation:
+                fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                self.budget_manager.commit(
+                    reservation=reservation,
+                    success=False,
+                    failure_category=fc,
+                    provider=settings.llm_provider,
+                    model=settings.llm_model or "default",
+                    actual_requests=1,
+                    error_message=str(exc),
+                )
+            raise
 
         elapsed = time.perf_counter() - start_time
         logger.info(

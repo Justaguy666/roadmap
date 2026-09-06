@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from roadmap.application.ports.infrastructure import Cache, WebFetcher
 from roadmap.application.ports.llm_provider import LLMProvider
 from roadmap.application.ports.search_provider import SearchProvider
+from roadmap.application.services.llm_budget_manager import LLMBudgetManager
 from roadmap.application.services.research_service import ResearchService
 from roadmap.application.use_cases.analyze_goal import AnalyzeGoalUseCase
 from roadmap.application.use_cases.generate_roadmap import GenerateRoadmapUseCase
@@ -30,6 +31,7 @@ from roadmap.config.settings import settings
 from roadmap.infrastructure.llm.fake_provider import FakeLLMProvider
 from roadmap.infrastructure.llm.openai_provider import OpenAIProvider
 from roadmap.storage.database import create_all_tables, get_session
+from roadmap.storage.repositories.llm_usage_repository import SqliteLLMUsageRepository
 from roadmap.storage.repositories.profile_repository import SqliteProfileRepository
 from roadmap.storage.repositories.progress_repository import SqliteProgressRepository
 from roadmap.storage.repositories.research_repository import (
@@ -187,7 +189,10 @@ def get_generator_context(
         source_repo = SqliteSourceRepository(session)
         recommendation_repo = SqliteRecommendationRepository(session)
 
-        analyze_uc = AnalyzeGoalUseCase(llm_provider=provider)
+        usage_repo = SqliteLLMUsageRepository(session)
+        budget_mgr = LLMBudgetManager(repository=usage_repo)
+
+        analyze_uc = AnalyzeGoalUseCase(llm_provider=provider, budget_manager=budget_mgr)
         generate_uc = GenerateRoadmapUseCase(
             llm_provider=provider,
             profile_repo=profile_repo,
@@ -197,6 +202,7 @@ def get_generator_context(
             source_repo=source_repo,
             recommendation_repo=recommendation_repo,
             max_retries=settings.llm_max_retries,
+            budget_manager=budget_mgr,
         )
 
         yield (profile_repo, roadmap_repo, generate_uc, analyze_uc)
@@ -242,6 +248,8 @@ def get_research_context(
         source_repo = SqliteSourceRepository(session)
         evidence_repo = SqliteEvidenceRepository(session)
         run_repo = SqliteResearchRunRepository(session)
+        usage_repo = SqliteLLMUsageRepository(session)
+        budget_mgr = LLMBudgetManager(repository=usage_repo)
 
         svc = None
         if provider and search:
@@ -254,6 +262,15 @@ def get_research_context(
                 evidence_repo=evidence_repo,
                 run_repo=run_repo,
                 concurrency=settings.research_concurrency,
+                budget_manager=budget_mgr,
             )
 
         yield (profile_repo, source_repo, evidence_repo, run_repo, svc)
+
+
+@contextmanager
+def get_budget_context() -> Generator[LLMBudgetManager, None, None]:
+    """Yield LLMBudgetManager bound to a database session."""
+    with get_session() as session:
+        usage_repo = SqliteLLMUsageRepository(session)
+        yield LLMBudgetManager(repository=usage_repo)

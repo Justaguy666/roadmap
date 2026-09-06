@@ -17,6 +17,8 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
+from roadmap.domain.value_objects.enums import FailureCategory
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -109,9 +111,13 @@ class LLMProvider(Protocol):
 class LLMProviderError(Exception):
     """Base exception raised when the LLM provider cannot complete a request."""
 
+    failure_category: FailureCategory = FailureCategory.UNKNOWN_PROVIDER_ERROR
+
 
 class MissingAPIKeyError(LLMProviderError):
     """Raised when an API key is required but missing."""
+
+    failure_category = FailureCategory.AUTHENTICATION_ERROR
 
     def __init__(self, provider: str = "OpenAI", env_var: str = "OPENAI_API_KEY") -> None:
         self.provider = provider
@@ -125,9 +131,13 @@ class MissingAPIKeyError(LLMProviderError):
 class LLMAuthenticationError(LLMProviderError):
     """Raised when authentication with the LLM provider fails."""
 
+    failure_category = FailureCategory.AUTHENTICATION_ERROR
+
 
 class LLMRateLimitError(LLMProviderError):
     """Raised when rate limits or quotas are exceeded."""
+
+    failure_category = FailureCategory.PROVIDER_RATE_LIMITED
 
     def __init__(self, message: str, retry_after: float | None = None) -> None:
         super().__init__(message)
@@ -137,13 +147,19 @@ class LLMRateLimitError(LLMProviderError):
 class LLMDailyQuotaExceededError(LLMRateLimitError):
     """Raised when the daily quota limit for the LLM model/project has been completely exhausted."""
 
+    failure_category = FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED
+
 
 class LLMTimeoutError(LLMProviderError):
     """Raised when the LLM request times out."""
 
+    failure_category = FailureCategory.TRANSIENT_PROVIDER_ERROR
+
 
 class LLMValidationError(LLMProviderError):
     """Raised when LLM output cannot be validated against the schema."""
+
+    failure_category = FailureCategory.INVALID_REQUEST
 
     def __init__(self, model_name: str, attempts: int, last_error: str) -> None:
         self.model_name = model_name
@@ -152,3 +168,47 @@ class LLMValidationError(LLMProviderError):
         super().__init__(
             f"LLM output for {model_name} failed validation after {attempts} attempts: {last_error}"
         )
+
+
+class ApplicationBudgetExceededError(LLMProviderError):
+    """Raised when the application request budget is exhausted before calling the provider."""
+
+    failure_category = FailureCategory.APPLICATION_BUDGET_EXCEEDED
+
+    def __init__(
+        self,
+        workflow: str,
+        allocated: int,
+        used: int,
+        required: int = 1,
+        message: str | None = None,
+    ) -> None:
+        self.workflow = workflow
+        self.allocated = allocated
+        self.used = used
+        self.required = required
+        msg = message or (
+            f"LLM application budget exhausted for workflow '{workflow}'. "
+            f"Allocated: {allocated}, Used: {used}, Required: {required}."
+        )
+        super().__init__(msg)
+
+
+class ProviderQuotaUnavailableError(LLMProviderError):
+    """Raised when the provider is in an active quota cooldown and cannot accept requests."""
+
+    failure_category = FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED
+
+    def __init__(
+        self,
+        provider: str,
+        model: str,
+        message: str | None = None,
+    ) -> None:
+        self.provider = provider
+        self.model = model
+        msg = message or (
+            f"Provider quota unavailable: {provider} daily quota for model '{model}' has been exhausted. "
+            "No provider request was attempted."
+        )
+        super().__init__(msg)
