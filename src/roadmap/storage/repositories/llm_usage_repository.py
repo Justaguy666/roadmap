@@ -66,6 +66,7 @@ class SqliteLLMUsageRepository(LLMUsageRepository):
 
     def save_provider_state(self, state: LLMProviderState) -> None:
         composite_id = f"{state.provider}:{state.model}".lower()
+        cd_until = state.blocked_until or state.cooldown_until
         existing = self._session.get(LLMProviderStateModel, composite_id)
         if existing:
             existing.is_available = state.is_available
@@ -73,7 +74,7 @@ class SqliteLLMUsageRepository(LLMUsageRepository):
                 state.last_failure_category.value if state.last_failure_category else None
             )
             existing.last_failure_at = state.last_failure_at
-            existing.cooldown_until = state.cooldown_until
+            existing.cooldown_until = cd_until
             existing.error_message = state.error_message
             existing.updated_at = datetime.now(UTC)
         else:
@@ -86,7 +87,7 @@ class SqliteLLMUsageRepository(LLMUsageRepository):
                     state.last_failure_category.value if state.last_failure_category else None
                 ),
                 last_failure_at=state.last_failure_at,
-                cooldown_until=state.cooldown_until,
+                cooldown_until=cd_until,
                 error_message=state.error_message,
                 updated_at=datetime.now(UTC),
             )
@@ -157,6 +158,7 @@ class SqliteLLMUsageRepository(LLMUsageRepository):
             with contextlib.suppress(ValueError):
                 fc = FailureCategory(m.last_failure_category)
 
+        is_quota = fc == FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED
         return LLMProviderState(
             provider=m.provider,
             model=m.model,
@@ -165,4 +167,6 @@ class SqliteLLMUsageRepository(LLMUsageRepository):
             last_failure_at=m.last_failure_at,
             cooldown_until=m.cooldown_until,
             error_message=m.error_message,
+            quota_exhausted=is_quota,
+            blocked_until=m.cooldown_until,
         )

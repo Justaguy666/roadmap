@@ -60,9 +60,11 @@ def quota(
                     "provider": p.provider,
                     "model": p.model,
                     "is_available": p.is_available,
+                    "quota_exhausted": p.quota_exhausted,
                     "last_failure_category": p.last_failure_category.value if p.last_failure_category else None,
                     "last_failure_at": p.last_failure_at.isoformat() if p.last_failure_at else None,
                     "cooldown_until": p.cooldown_until.isoformat() if p.cooldown_until else None,
+                    "blocked_until": p.blocked_until.isoformat() if p.blocked_until else (p.cooldown_until.isoformat() if p.cooldown_until else None),
                     "error_message": p.error_message,
                 }
                 for p in status.provider_states
@@ -129,38 +131,55 @@ def quota(
     prov_table.add_column("Provider", style="bold white")
     prov_table.add_column("Model")
     prov_table.add_column("Status", justify="center")
-    prov_table.add_column("Last Failure / Cooldown")
+    prov_table.add_column("Circuit-Breaker", justify="center")
+    prov_table.add_column("Re-probe / Cooldown", justify="left")
 
+    has_active_cb = False
     if not status.provider_states:
         curr_p = settings.llm_provider
         curr_m = (
             settings.llm_model
             or (settings.gemini_model if curr_p == "gemini" else (settings.openai_model if curr_p == "openai" else "mock"))
         )
-        prov_table.add_row(curr_p.capitalize(), curr_m, "[green]ACTIVE / READY[/green]", "None")
+        prov_table.add_row(curr_p.capitalize(), curr_m, "[green]AVAILABLE[/green]", "[green]INACTIVE[/green]", "None")
     else:
         for p in status.provider_states:
             now = datetime.now(UTC)
+            active_block = p.blocked_until or p.cooldown_until
             cd_until = (
-                p.cooldown_until
-                if (p.cooldown_until is None or p.cooldown_until.tzinfo)
-                else p.cooldown_until.replace(tzinfo=UTC)
-                if p.cooldown_until
+                active_block
+                if (active_block is None or active_block.tzinfo)
+                else active_block.replace(tzinfo=UTC)
+                if active_block
                 else None
             )
             in_cd = cd_until is not None and now < cd_until
             if in_cd:
-                p_status = "[bold red]DAILY QUOTA EXCEEDED[/bold red]"
+                has_active_cb = True
+                p_status = "[bold red]DAILY QUOTA EXHAUSTED[/bold red]"
+                cb_status = "[bold red]ACTIVE[/bold red]"
                 cd_rem = int((cd_until - now).total_seconds()) if cd_until else 0
-                detail = f"Cooldown {cd_rem}s remaining"
+                reprobe_time_str = cd_until.strftime("%H:%M:%S UTC") if cd_until else ""
+                detail = f"{reprobe_time_str} ({cd_rem}s remaining)"
+            elif p.quota_exhausted:
+                p_status = "[bold yellow]QUOTA EXHAUSTED (RE-PROBE READY)[/bold yellow]"
+                cb_status = "[yellow]EXPIRED (ALLOW 1 PROBE)[/yellow]"
+                detail = "Ready to test upstream quota reset"
             elif not p.is_available:
                 p_status = "[bold yellow]UNAVAILABLE[/bold yellow]"
+                cb_status = "[yellow]ACTIVE[/yellow]"
                 detail = p.last_failure_category.value if p.last_failure_category else "Error"
             else:
                 p_status = "[green]AVAILABLE[/green]"
+                cb_status = "[green]INACTIVE[/green]"
                 detail = "Clear"
-            prov_table.add_row(p.provider.capitalize(), p.model, p_status, detail)
+            prov_table.add_row(p.provider.capitalize(), p.model, p_status, cb_status, detail)
     console.print(prov_table)
+    if has_active_cb or any(p.quota_exhausted for p in status.provider_states):
+        console.print(
+            "[dim]* Note: Re-probe time is a local application circuit-breaker duration, "
+            "NOT the provider's confirmed daily quota reset time.[/dim]"
+        )
     console.print()
 
     # 4. Recent Usage Table

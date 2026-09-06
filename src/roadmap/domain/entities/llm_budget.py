@@ -46,7 +46,7 @@ class LLMReservation:
 
 @dataclass
 class LLMProviderState:
-    """Provider health and cooldown tracking."""
+    """Provider health, circuit breaker, and quota exhaustion tracking."""
 
     provider: str
     model: str = "default"
@@ -55,6 +55,10 @@ class LLMProviderState:
     last_failure_at: datetime | None = None
     cooldown_until: datetime | None = None
     error_message: str | None = None
+    quota_exhausted: bool = False
+    retry_after: float | None = None
+    blocked_until: datetime | None = None
+    quota_scope: str | None = None
 
 
 @dataclass

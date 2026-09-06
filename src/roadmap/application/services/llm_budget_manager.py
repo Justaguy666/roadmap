@@ -68,22 +68,34 @@ class LLMBudgetManager:
         """
         Check if provider is available or in cooldown due to previous daily quota exhaustion.
         Returns (is_available, reason).
+        If circuit-breaker cooldown has expired, allows a controlled re-probe attempt.
         """
         state = self.repository.get_provider_state(provider, model)
         if not state:
             return True, "Provider state clear"
 
-        if state.cooldown_until:
+        active_block_until = state.blocked_until or state.cooldown_until
+        if active_block_until:
             now = datetime.now(UTC)
             # Ensure timezone awareness
-            cd_until = state.cooldown_until if state.cooldown_until.tzinfo else state.cooldown_until.replace(tzinfo=UTC)
+            cd_until = active_block_until if active_block_until.tzinfo else active_block_until.replace(tzinfo=UTC)
             if now < cd_until:
                 remaining_sec = int((cd_until - now).total_seconds())
                 reason = (
                     f"Provider '{provider}' (model '{model}') is in cooldown for {remaining_sec}s "
-                    f"after previous {state.last_failure_category.value if state.last_failure_category else 'daily quota'} failure."
+                    f"(circuit-breaker active) after previous "
+                    f"{state.last_failure_category.value if state.last_failure_category else 'daily quota'} failure."
                 )
                 return False, reason
+            else:
+                # Cooldown expired: allow a controlled re-probe
+                logger.info(
+                    "Allowing controlled re-probe for provider after circuit-breaker cooldown expired",
+                    provider=provider,
+                    model=model,
+                    cooldown_expired_at=cd_until.isoformat(),
+                )
+                return True, "Re-probing provider after circuit-breaker expiration"
 
         return True, "Provider available"
 
@@ -248,6 +260,16 @@ class LLMBudgetManager:
                 cooldown_seconds=self.cooldown_seconds,
                 error_message=error_message,
             )
+        elif success:
+            # If the request succeeded and there was an exhausted provider state, clear it
+            existing_state = self.repository.get_provider_state(commit_provider, commit_model)
+            if existing_state and (existing_state.quota_exhausted or existing_state.cooldown_until):
+                logger.info(
+                    "Re-probe succeeded, clearing provider cooldown and quota exhaustion",
+                    provider=commit_provider,
+                    model=commit_model,
+                )
+                self.clear_provider_cooldown(commit_provider, commit_model)
 
         logger.info(
             "LLM budget reservation committed",
@@ -280,17 +302,20 @@ class LLMBudgetManager:
         """Record a provider-level failure, placing it in cooldown if daily quota exhausted."""
         now = datetime.now(UTC)
         cd_until = None
-        if failure_category == FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED:
+        is_exhausted = (failure_category == FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED)
+        if is_exhausted:
             secs = cooldown_seconds or self.cooldown_seconds
             cd_until = now + timedelta(seconds=secs)
 
         state = LLMProviderState(
             provider=provider,
             model=model,
-            is_available=(failure_category != FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED),
+            is_available=not is_exhausted,
+            quota_exhausted=is_exhausted,
             last_failure_category=failure_category,
             last_failure_at=now,
             cooldown_until=cd_until,
+            blocked_until=cd_until,
             error_message=error_message,
         )
         self.repository.save_provider_state(state)
@@ -299,7 +324,8 @@ class LLMBudgetManager:
             provider=provider,
             model=model,
             failure_category=failure_category.value,
-            cooldown_until=cd_until.isoformat() if cd_until else None,
+            quota_exhausted=is_exhausted,
+            blocked_until=cd_until.isoformat() if cd_until else None,
         )
 
     def clear_provider_cooldown(self, provider: str, model: str = "default") -> None:
@@ -308,9 +334,11 @@ class LLMBudgetManager:
             provider=provider,
             model=model,
             is_available=True,
+            quota_exhausted=False,
             last_failure_category=None,
             last_failure_at=None,
             cooldown_until=None,
+            blocked_until=None,
         )
         self.repository.save_provider_state(state)
 
