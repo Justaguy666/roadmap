@@ -207,12 +207,16 @@ class RoadmapRevisionLoop:
             ]
 
             reservation = None
+            prov_name = getattr(self.llm, "provider_name", settings.llm_provider)
+            mod_name = getattr(self.llm, "model_name", settings.llm_model or "default")
             if self.budget_manager:
                 try:
                     reservation = self.budget_manager.reserve(
                         workflow=LLMWorkflow.GENERATION,
                         operation=f"revision_cycle_{iteration}",
                         estimated_requests=1,
+                        provider=prov_name,
+                        model=mod_name,
                     )
                 except Exception as b_exc:
                     warn = f"Revision budget exhausted at cycle {iteration}: {b_exc}. Stopping revision loop."
@@ -232,8 +236,6 @@ class RoadmapRevisionLoop:
                     self.budget_manager.commit(
                         reservation=reservation,
                         success=True,
-                        provider=settings.llm_provider,
-                        model=settings.llm_model or "default",
                         actual_requests=1,
                     )
                 current_candidate = revised_draft
@@ -244,8 +246,6 @@ class RoadmapRevisionLoop:
                         reservation=reservation,
                         success=False,
                         failure_category=fc,
-                        provider=settings.llm_provider,
-                        model=settings.llm_model or "default",
                         actual_requests=1,
                         error_message=str(exc),
                     )

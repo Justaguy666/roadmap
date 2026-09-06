@@ -338,12 +338,16 @@ class GenerateRoadmapUseCase:
         ]
 
         reservation = None
+        prov_name = getattr(self.llm_provider, "provider_name", settings.llm_provider)
+        mod_name = getattr(self.llm_provider, "model_name", settings.llm_model or "default")
         if self.budget_manager:
             reservation = self.budget_manager.reserve(
                 workflow=LLMWorkflow.GENERATION,
                 operation="candidate_generation",
                 estimated_requests=1,
                 correlation_id=profile.id,
+                provider=prov_name,
+                model=mod_name,
             )
 
         try:
@@ -355,8 +359,6 @@ class GenerateRoadmapUseCase:
                 self.budget_manager.commit(
                     reservation=reservation,
                     success=True,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                 )
             return draft
@@ -367,8 +369,6 @@ class GenerateRoadmapUseCase:
                     reservation=reservation,
                     success=False,
                     failure_category=fc,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                     error_message=str(exc),
                 )

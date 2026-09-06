@@ -96,6 +96,26 @@ class SqliteLLMUsageRepository(LLMUsageRepository):
     def get_provider_state(self, provider: str, model: str = "default") -> LLMProviderState | None:
         composite_id = f"{provider}:{model}".lower()
         m = self._session.get(LLMProviderStateModel, composite_id)
+        if not m and model != "default":
+            # Check for legacy default key and safely migrate it if found
+            legacy_m = self._session.get(LLMProviderStateModel, f"{provider}:default".lower())
+            if legacy_m:
+                # Update legacy record to concrete model
+                m = LLMProviderStateModel(
+                    id=composite_id,
+                    provider=provider,
+                    model=model,
+                    is_available=legacy_m.is_available,
+                    last_failure_category=legacy_m.last_failure_category,
+                    last_failure_at=legacy_m.last_failure_at,
+                    cooldown_until=legacy_m.cooldown_until,
+                    error_message=legacy_m.error_message,
+                    updated_at=datetime.now(UTC),
+                )
+                self._session.delete(legacy_m)
+                self._session.add(m)
+                self._session.flush()
+
         if not m:
             return None
         return self._to_provider_state_entity(m)

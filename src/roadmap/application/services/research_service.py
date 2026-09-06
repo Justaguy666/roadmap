@@ -136,11 +136,15 @@ class ResearchService:
         ]
 
         plan_res = None
+        prov_name = getattr(self.llm, "provider_name", settings.llm_provider)
+        mod_name = getattr(self.llm, "model_name", settings.llm_model or "default")
         if self.budget_manager:
             try:
                 plan_res = self.budget_manager.reserve(
                     workflow=LLMWorkflow.RESEARCH,
                     operation="query_planning",
+                    provider=prov_name,
+                    model=mod_name,
                     estimated_requests=1,
                     correlation_id=run.id,
                 )
@@ -170,8 +174,6 @@ class ResearchService:
                 self.budget_manager.commit(
                     reservation=plan_res,
                     success=True,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                 )
         except LLMDailyQuotaExceededError as qe:
@@ -182,8 +184,6 @@ class ResearchService:
                     reservation=plan_res,
                     success=False,
                     failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                     error_message=str(qe),
                 )
@@ -205,8 +205,6 @@ class ResearchService:
                     reservation=plan_res,
                     success=False,
                     failure_category=fc,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                     error_message=str(e),
                 )
@@ -397,6 +395,8 @@ class ResearchService:
                     batch_res = self.budget_manager.reserve(
                         workflow=LLMWorkflow.RESEARCH,
                         operation=f"batch_extraction_{b_idx}",
+                        provider=prov_name,
+                        model=mod_name,
                         estimated_requests=1,
                         correlation_id=run.id,
                     )
@@ -420,8 +420,6 @@ class ResearchService:
                     self.budget_manager.commit(
                         reservation=batch_res,
                         success=True,
-                        provider=settings.llm_provider,
-                        model=settings.llm_model or "default",
                         actual_requests=1,
                     )
             except LLMDailyQuotaExceededError as dqe:
@@ -434,8 +432,6 @@ class ResearchService:
                         reservation=batch_res,
                         success=False,
                         failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED,
-                        provider=settings.llm_provider,
-                        model=settings.llm_model or "default",
                         actual_requests=1,
                         error_message=str(dqe),
                     )
@@ -458,8 +454,6 @@ class ResearchService:
                             self.budget_manager.commit(
                                 reservation=batch_res,
                                 success=True,
-                                provider=settings.llm_provider,
-                                model=settings.llm_model or "default",
                                 actual_requests=1,
                             )
                     except Exception as retry_exc:
@@ -472,8 +466,6 @@ class ResearchService:
                                 reservation=batch_res,
                                 success=False,
                                 failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED if is_dq else FailureCategory.PROVIDER_RATE_LIMITED,
-                                provider=settings.llm_provider,
-                                model=settings.llm_model or "default",
                                 actual_requests=1,
                                 error_message=str(retry_exc),
                             )
@@ -488,8 +480,6 @@ class ResearchService:
                             reservation=batch_res,
                             success=False,
                             failure_category=FailureCategory.PROVIDER_RATE_LIMITED,
-                            provider=settings.llm_provider,
-                            model=settings.llm_model or "default",
                             actual_requests=1,
                             error_message=str(rle),
                         )
@@ -504,8 +494,6 @@ class ResearchService:
                         reservation=batch_res,
                         success=False,
                         failure_category=fc,
-                        provider=settings.llm_provider,
-                        model=settings.llm_model or "default",
                         actual_requests=1,
                         error_message=str(exc),
                     )

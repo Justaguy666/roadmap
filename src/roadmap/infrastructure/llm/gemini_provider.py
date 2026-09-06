@@ -55,7 +55,9 @@ class GeminiProvider(LLMProvider):
         if not resolved_key or not resolved_key.strip():
             raise MissingAPIKeyError(provider="Gemini", env_var="GEMINI_API_KEY")
 
+        self.provider_name = "gemini"
         self.model = model or settings.llm_model or settings.gemini_model or DEFAULT_GEMINI_MODEL
+        self.model_name = self.model
         self.default_temperature = temperature if temperature is not None else settings.llm_temperature
         self.default_max_tokens = max_tokens or settings.llm_max_tokens
         self.default_max_retries = max_retries or settings.llm_max_retries

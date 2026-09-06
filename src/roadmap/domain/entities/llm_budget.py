@@ -36,6 +36,8 @@ class LLMReservation:
     id: str = field(default_factory=new_id)
     workflow: LLMWorkflow = LLMWorkflow.OTHER
     operation: str = "completion"
+    provider: str = "unknown"
+    model: str = "unknown"
     reserved_requests: int = 1
     correlation_id: str | None = None
     committed: bool = False

@@ -252,7 +252,11 @@ class FakeLLMProvider(LLMProvider):
         goal_analysis_result: GoalAnalysisResult | None = None,
         roadmap_result: RoadmapGenerationResult | None = None,
         simulate_error: Exception | None = None,
+        provider_name: str = "mock",
+        model_name: str = "default",
     ) -> None:
+        self.provider_name = provider_name
+        self.model_name = model_name
         self.goal_analysis_result = goal_analysis_result or get_default_fake_goal_analysis()
         self.roadmap_result = roadmap_result or get_default_fake_roadmap_result()
         self.simulate_error = simulate_error

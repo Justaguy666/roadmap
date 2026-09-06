@@ -170,6 +170,8 @@ class LLMBudgetManager:
         reservation = LLMReservation(
             workflow=wf_enum,
             operation=operation,
+            provider=prov_name,
+            model=mod_name,
             reserved_requests=estimated_requests,
             correlation_id=correlation_id,
         )
@@ -182,6 +184,8 @@ class LLMBudgetManager:
             reservation_id=reservation.id,
             workflow=wf_enum.value,
             operation=operation,
+            provider=prov_name,
+            model=mod_name,
             requests=estimated_requests,
         )
         return reservation
@@ -191,8 +195,8 @@ class LLMBudgetManager:
         reservation: LLMReservation,
         success: bool = True,
         failure_category: FailureCategory | None = None,
-        provider: str = "unknown",
-        model: str = "unknown",
+        provider: str | None = None,
+        model: str | None = None,
         actual_requests: int | None = None,
         estimated_tokens: int = 0,
         error_message: str | None = None,
@@ -211,11 +215,19 @@ class LLMBudgetManager:
 
             reservation.committed = True
 
+        # Use reservation's provider/model unless explicitly overridden
+        commit_provider = provider or (reservation.provider if reservation.provider != "unknown" else settings.llm_provider)
+        commit_model = model or (
+            reservation.model
+            if reservation.model != "unknown"
+            else (settings.llm_model or (settings.gemini_model if commit_provider == "gemini" else (settings.openai_model if commit_provider == "openai" else "default")))
+        )
+
         req_count = actual_requests if actual_requests is not None else reservation.reserved_requests
         record = LLMUsageRecord(
             workflow=reservation.workflow,
-            provider=provider,
-            model=model,
+            provider=commit_provider,
+            model=commit_model,
             operation=reservation.operation,
             success=success,
             failure_category=failure_category,
@@ -230,8 +242,8 @@ class LLMBudgetManager:
         # If provider daily quota was exhausted, update provider state with cooldown
         if failure_category == FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED:
             self.record_provider_failure(
-                provider=provider,
-                model=model,
+                provider=commit_provider,
+                model=commit_model,
                 failure_category=failure_category,
                 cooldown_seconds=self.cooldown_seconds,
                 error_message=error_message,
@@ -241,6 +253,8 @@ class LLMBudgetManager:
             "LLM budget reservation committed",
             reservation_id=reservation.id,
             workflow=reservation.workflow.value,
+            provider=commit_provider,
+            model=commit_model,
             success=success,
             failure_category=failure_category.value if failure_category else None,
             actual_requests=record.actual_requests,

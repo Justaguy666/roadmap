@@ -58,12 +58,16 @@ class AnalyzeGoalUseCase:
         ]
 
         reservation = None
+        prov_name = getattr(self.llm_provider, "provider_name", settings.llm_provider)
+        mod_name = getattr(self.llm_provider, "model_name", settings.llm_model or "default")
         if self.budget_manager:
             reservation = self.budget_manager.reserve(
                 workflow=LLMWorkflow.GENERATION,
                 operation="goal_analysis",
                 estimated_requests=1,
                 correlation_id=profile.id,
+                provider=prov_name,
+                model=mod_name,
             )
 
         try:
@@ -75,8 +79,6 @@ class AnalyzeGoalUseCase:
                 self.budget_manager.commit(
                     reservation=reservation,
                     success=True,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                 )
         except Exception as exc:
@@ -86,8 +88,6 @@ class AnalyzeGoalUseCase:
                     reservation=reservation,
                     success=False,
                     failure_category=fc,
-                    provider=settings.llm_provider,
-                    model=settings.llm_model or "default",
                     actual_requests=1,
                     error_message=str(exc),
                 )

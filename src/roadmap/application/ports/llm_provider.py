@@ -69,6 +69,9 @@ class LLMProvider(Protocol):
     4. Never return unvalidated text as application state.
     """
 
+    provider_name: str
+    model_name: str
+
     def complete(
         self,
         messages: list[LLMMessage],
