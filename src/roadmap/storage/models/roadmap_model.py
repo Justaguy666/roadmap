@@ -27,6 +27,9 @@ class RoadmapModel(Base):
     skipped_skill_names_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     research_run_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
     quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    validation_status: Mapped[str] = mapped_column(String(50), nullable=False, default="COMPLETED")
+    evaluator_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evaluator_verdict: Mapped[str | None] = mapped_column(String(20), nullable=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 

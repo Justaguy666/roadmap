@@ -124,40 +124,78 @@ def why(
         )
 
         if factors:
-            factor_table = Table(title="Decision Factor Breakdown (Weights & Signals)", border_style="cyan")
+            market_val = float(factors.get("market_relevance", 0.0))
+            goal_val = float(factors.get("goal_relevance", 0.0))
+            gap_val = float(factors.get("skill_gap", 0.0))
+            prereq_val = float(factors.get("prerequisite_importance", 0.0))
+            portfolio_val = float(factors.get("portfolio_value", 0.0))
+            time_val = float(factors.get("time_cost_factor", 0.0))
+
+            factor_table = Table(title="Decision Factor Breakdown (Model Weights & Signals)", border_style="cyan")
             factor_table.add_column("Factor Dimension", style="bold white")
-            factor_table.add_column("Factor Score", justify="center")
+            factor_table.add_column("Raw Score", justify="center")
+            factor_table.add_column("Weight", justify="center", style="dim")
+            factor_table.add_column("Contribution", justify="center", style="cyan")
             factor_table.add_column("Description / Interpretation")
 
             factor_table.add_row(
                 "Market Relevance",
-                f"{int(float(factors.get('market_relevance', 0.0)) * 100)}%",
+                f"{market_val:.2f}",
+                "25%",
+                f"{market_val * 0.25:.3f}",
                 "Observed frequency in job postings and industry hiring profiles",
             )
             factor_table.add_row(
                 "Goal Relevance",
-                f"{int(float(factors.get('goal_relevance', 0.0)) * 100)}%",
+                f"{goal_val:.2f}",
+                "30%",
+                f"{goal_val * 0.30:.3f}",
                 "Direct contribution to target career competencies",
             )
             factor_table.add_row(
                 "Skill Gap",
-                f"{int(float(factors.get('skill_gap', 0.0)) * 100)}%",
+                f"{gap_val:.2f}",
+                "20%",
+                f"{gap_val * 0.20:.3f}",
                 "Distance from current reported level to target proficiency",
             )
             factor_table.add_row(
                 "Prerequisite Importance",
-                f"{int(float(factors.get('prerequisite_importance', 0.0)) * 100)}%",
+                f"{prereq_val:.2f}",
+                "15%",
+                f"{prereq_val * 0.15:.3f}",
                 "Number of downstream roadmap skills depending on this competency",
             )
             factor_table.add_row(
                 "Portfolio Value",
-                f"{int(float(factors.get('portfolio_value', 0.0)) * 100)}%",
+                f"{portfolio_val:.2f}",
+                "10%",
+                f"{portfolio_val * 0.10:.3f}",
                 "Tangible proof and project demonstrable impact",
             )
             factor_table.add_row(
                 "Time Cost Factor",
-                f"{int(float(factors.get('time_cost_factor', 0.0)) * 100)}%",
-                "Feasibility of acquisition within user's weekly study budget",
+                f"{time_val:.2f}",
+                "N/A",
+                "Feasibility",
+                "Acquisition pacing feasibility within user's weekly study budget",
+            )
+
+            # Calculate composite
+            calc_composite = (
+                (market_val * 0.25)
+                + (goal_val * 0.30)
+                + (gap_val * 0.20)
+                + (prereq_val * 0.15)
+                + (portfolio_val * 0.10)
+            )
+            factor_table.add_section()
+            factor_table.add_row(
+                "[bold green]Final Composite Score[/bold green]",
+                f"[bold green]{calc_composite:.3f}[/bold green]",
+                "[bold green]100%[/bold green]",
+                f"[bold green]{calc_composite:.3f}[/bold green]",
+                "[bold green]Deterministic inclusion threshold: ≥ 0.45 include, ≥ 0.70 high priority[/bold green]",
             )
             console.print(factor_table)
 

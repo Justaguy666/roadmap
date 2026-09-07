@@ -139,3 +139,54 @@ class EvidenceAggregator:
         for sk in sorted(skills):
             summaries[sk] = cls.aggregate_for_skill(sk, evidence_items, sources_by_id)
         return summaries
+
+    @staticmethod
+    def find_evidence_summary(
+        skill_name: str,
+        evidence_summaries: dict[str, SkillEvidenceSummary] | None,
+        skill_evidence_ids: list[str] | None = None,
+    ) -> SkillEvidenceSummary | None:
+        """Find matching SkillEvidenceSummary using exact, case-insensitive, normalized, or ID matching."""
+        if not evidence_summaries:
+            return None
+
+        # 1. Exact match
+        if skill_name in evidence_summaries:
+            return evidence_summaries[skill_name]
+
+        # 2. Case-insensitive exact match
+        for k, v in evidence_summaries.items():
+            if k.lower() == skill_name.lower():
+                return v
+
+        # Helper for alphanumeric + c++ normalization
+        import re
+
+        def _norm(s: str) -> str:
+            s_clean = s.lower().replace("c++", "__cpp__")
+            s_clean = re.sub(r"\(.*?\)", " ", s_clean)
+            s_clean = re.sub(r"[^a-z0-9_]", " ", s_clean)
+            s_clean = s_clean.replace("__cpp__", "c++")
+            return " ".join(s_clean.split())
+
+        norm_sk = _norm(skill_name)
+
+        # 3. Direct normalized key containment / equality
+        if norm_sk:
+            for k in sorted(evidence_summaries.keys(), key=len, reverse=True):
+                norm_k = _norm(k)
+                if not norm_k:
+                    continue
+                p_k = r"(^|\s)" + re.escape(norm_k) + r"(\s|$)"
+                p_sk = r"(^|\s)" + re.escape(norm_sk) + r"(\s|$)"
+                if re.search(p_k, norm_sk) or re.search(p_sk, norm_k):
+                    return evidence_summaries[k]
+
+        # 4. Match by attached evidence IDs
+        if skill_evidence_ids:
+            attached_set = set(skill_evidence_ids)
+            for v in evidence_summaries.values():
+                if any(eid in attached_set for eid in v.supporting_evidence_ids):
+                    return v
+
+        return None

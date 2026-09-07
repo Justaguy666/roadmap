@@ -85,12 +85,29 @@ def get_session() -> Generator[Session, None, None]:
 
 
 def create_all_tables() -> None:
-    """Create all tables defined in the ORM models."""
+    """Create all tables defined in the ORM models and migrate missing columns."""
     import roadmap.storage.models  # noqa: F401
     from roadmap.storage.models.base import Base  # noqa: F401  (imports all models)
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
+
+    # Lightweight SQLite column migration for backward compatibility
+    if engine.url.database and engine.url.database.endswith(".db"):
+        with engine.begin() as conn:
+            from sqlalchemy import text
+            try:
+                cols_res = conn.execute(text("PRAGMA table_info(roadmaps)"))
+                existing_cols = {row[1] for row in cols_res.fetchall()}
+                if "validation_status" not in existing_cols:
+                    conn.execute(text("ALTER TABLE roadmaps ADD COLUMN validation_status VARCHAR(50) DEFAULT 'COMPLETED' NOT NULL"))
+                if "evaluator_score" not in existing_cols:
+                    conn.execute(text("ALTER TABLE roadmaps ADD COLUMN evaluator_score FLOAT"))
+                if "evaluator_verdict" not in existing_cols:
+                    conn.execute(text("ALTER TABLE roadmaps ADD COLUMN evaluator_verdict VARCHAR(20)"))
+            except Exception as exc:
+                logger.debug("Automatic SQLite column check skipped or failed", error=str(exc))
+
     logger.info("Database tables created/verified")
 
 

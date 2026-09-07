@@ -72,14 +72,22 @@ def generate(
                     existing_goal_analysis=None,
                     progress_callback=lambda msg: console.print(f"    [dim]• {msg}[/dim]"),
                 )
-            print_success(f"Roadmap generated (v{roadmap.version}) with quality score {roadmap.quality_score:.1f}/100.")
+            print_success(f"Roadmap generated (v{roadmap.version}).")
 
             console.print()
-            print_header(f"✓ Roadmap generated successfully: {roadmap.title} (v{roadmap.version})")
+            if roadmap.validation_status == "COMPLETED_WITH_WARNINGS":
+                eval_info = f" (Evaluator critique score: {roadmap.evaluator_score:.0f}/100, verdict: {roadmap.evaluator_verdict})" if roadmap.evaluator_score else ""
+                print_warning(
+                    f"Validation completed with warnings / degraded state: revision budget or cycle limit reached{eval_info}."
+                )
+
+            print_header(f"✓ Roadmap generated: {roadmap.title} (v{roadmap.version})")
+            eval_score_str = f"{roadmap.evaluator_score:.1f}/100" if roadmap.evaluator_score is not None else "N/A"
             console.print(
                 f"  Phases: [bold]{len(roadmap.phases)}[/bold]  |  "
                 f"Skills: [bold]{len(roadmap.all_skills)}[/bold]  |  "
-                f"Quality: [bold cyan]{roadmap.quality_score:.1f}/100[/bold cyan]  |  "
+                f"Deterministic Quality: [bold cyan]{roadmap.quality_score:.1f}/100[/bold cyan]  |  "
+                f"Evaluator Score: [dim]{eval_score_str}[/dim]  |  "
                 f"Estimated Duration: [bold]{roadmap.total_weeks} weeks[/bold] (~{roadmap.total_estimated_hours:.0f} hours)"
             )
             console.print()

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from roadmap.domain.entities.evidence_aggregation import RoadmapQualityScore, SkillEvidenceSummary
 from roadmap.domain.entities.roadmap import Roadmap
+from roadmap.domain.entities.skill import Skill
 from roadmap.domain.entities.user_profile import UserProfile
 
 
@@ -64,13 +65,27 @@ class QualityScorer:
         # 3. Market alignment & Evidence strength
         all_skills = [sk for p in roadmap.phases for sk in p.skills]
         if evidence_summaries and all_skills:
-            grounded_skills = [sk for sk in all_skills if sk.name in evidence_summaries and evidence_summaries[sk.name].evidence_count > 0]
+            from roadmap.domain.services.evidence_aggregator import EvidenceAggregator
+
+            grounded_skills: list[tuple[Skill, SkillEvidenceSummary]] = []
+            for sk in all_skills:
+                match = EvidenceAggregator.find_evidence_summary(
+                    skill_name=sk.name,
+                    evidence_summaries=evidence_summaries,
+                    skill_evidence_ids=sk.evidence_ids,
+                )
+                if match and match.evidence_count > 0:
+                    grounded_skills.append((sk, match))
+
             evidence_pct = len(grounded_skills) / len(all_skills)
             evidence_score = round(evidence_pct * 100.0, 1)
 
             # Average weighted score of grounded skills
-            avg_w = sum(evidence_summaries[sk.name].weighted_score for sk in grounded_skills) / max(1, len(grounded_skills))
-            market_score = round(avg_w * 100.0, 1)
+            if grounded_skills:
+                avg_w = sum(sm.weighted_score for _, sm in grounded_skills) / len(grounded_skills)
+                market_score = round(avg_w * 100.0, 1)
+            else:
+                market_score = 50.0
         else:
             evidence_score = 50.0  # Default ungrounded baseline
             market_score = 60.0

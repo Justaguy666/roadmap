@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from roadmap.domain.entities.source import Evidence, Recommendation, ResearchRun, Source
@@ -14,6 +15,7 @@ from roadmap.storage.models.research_model import (
     RecommendationModel,
     ResearchRunModel,
 )
+from roadmap.storage.models.skill_model import SkillModel
 
 
 class SqliteSourceRepository:
@@ -266,9 +268,19 @@ class SqliteRecommendationRepository:
         return self._to_entity(m) if m else None
 
     def find_by_skill_name_or_id(self, skill_name_or_id: str, roadmap_id: str | None = None) -> Recommendation | None:
-        q = self._session.query(RecommendationModel).filter(
-            (RecommendationModel.skill_id == skill_name_or_id)
-            | (RecommendationModel.reasoning.ilike(f"%{skill_name_or_id}%"))
+        clean_target = skill_name_or_id.strip()
+        # 1. Join SkillModel for accurate name and ID resolution
+        q = (
+            self._session.query(RecommendationModel)
+            .outerjoin(SkillModel, SkillModel.id == RecommendationModel.skill_id)
+            .filter(
+                or_(
+                    RecommendationModel.skill_id == clean_target,
+                    func.lower(SkillModel.name) == clean_target.lower(),
+                    SkillModel.name.ilike(f"%{clean_target}%"),
+                    RecommendationModel.reasoning.ilike(f"%{clean_target}%"),
+                )
+            )
         )
         if roadmap_id:
             q = q.filter(RecommendationModel.roadmap_id == roadmap_id)

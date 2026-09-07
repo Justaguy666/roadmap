@@ -207,6 +207,14 @@ class GenerateRoadmapUseCase:
         )
         roadmap.quality_score = quality_score.overall_score
 
+        # Record validation status and evaluator audit metrics
+        roadmap.evaluator_score = evaluation_res.score
+        roadmap.evaluator_verdict = evaluation_res.verdict
+        if evaluation_res.verdict != "PASS" or bool(loop_warnings):
+            roadmap.validation_status = "COMPLETED_WITH_WARNINGS"
+        else:
+            roadmap.validation_status = "COMPLETED"
+
         # 10. Persist Roadmap, Skills, and Dependencies
         if hasattr(self.roadmap_repo, "get_next_version"):
             next_ver = self.roadmap_repo.get_next_version(profile.id)  # type: ignore[union-attr]
@@ -538,8 +546,20 @@ class GenerateRoadmapUseCase:
             skills: list[Skill] = []
             for sd in pd.skills:
                 ev_ids = list(sd.evidence_ids)
-                if not ev_ids and sd.name in evidence_map:
-                    ev_ids = evidence_map[sd.name].supporting_evidence_ids
+                matched_summary = EvidenceAggregator.find_evidence_summary(
+                    skill_name=sd.name,
+                    evidence_summaries=evidence_map,
+                    skill_evidence_ids=ev_ids,
+                )
+
+                if self.evidence_repo and hasattr(self.evidence_repo, "get_by_id"):
+                    # Validate any LLM-provided IDs
+                    valid_ids = [eid for eid in ev_ids if self.evidence_repo.get_by_id(eid) is not None]
+                    if not valid_ids and matched_summary:
+                        valid_ids = matched_summary.supporting_evidence_ids
+                    ev_ids = valid_ids
+                elif not ev_ids and matched_summary:
+                    ev_ids = matched_summary.supporting_evidence_ids
 
                 skills.append(
                     Skill(
@@ -669,8 +689,14 @@ class GenerateRoadmapUseCase:
             dep_counts[prereq] = dep_counts.get(prereq, 0) + 1
 
         for skill in roadmap.all_skills:
-            ev_summary = evidence_summaries.get(skill.name)
-            market_obs = market_observations.get(skill.name)
+            ev_summary = EvidenceAggregator.find_evidence_summary(
+                skill_name=skill.name,
+                evidence_summaries=evidence_summaries,
+                skill_evidence_ids=skill.evidence_ids,
+            )
+            # Find matching market observation by matching name or summary skill_name
+            matched_name = ev_summary.skill_name if ev_summary else skill.name
+            market_obs = market_observations.get(skill.name) or market_observations.get(matched_name)
             dependent_count = dep_counts.get(skill.name.lower(), 0)
 
             decision = RoadmapDecisionService.evaluate_skill(

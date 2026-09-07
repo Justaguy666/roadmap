@@ -138,6 +138,18 @@ class Roadmap(BaseModel):
         le=100.0,
         description="Assessed multi-dimensional roadmap quality score (0-100)",
     )
+    validation_status: str = Field(
+        default="COMPLETED",
+        description="Execution and verification status: 'COMPLETED' or 'COMPLETED_WITH_WARNINGS'",
+    )
+    evaluator_score: float | None = Field(
+        default=None,
+        description="Subjective evaluation score from LLM Evaluator agent (0-100)",
+    )
+    evaluator_verdict: str | None = Field(
+        default=None,
+        description="Verdict returned by LLM Evaluator agent ('PASS' or 'REVISE')",
+    )
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     last_updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

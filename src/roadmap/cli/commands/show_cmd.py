@@ -77,9 +77,14 @@ def show(
         else:
             # Show overview
             print_header(f"{roadmap.title.upper()} (v{roadmap.version})")
+            if getattr(roadmap, "validation_status", "COMPLETED") == "COMPLETED_WITH_WARNINGS":
+                eval_info = f" (Evaluator: {roadmap.evaluator_score:.0f}/100, verdict: {roadmap.evaluator_verdict})" if getattr(roadmap, "evaluator_score", None) else ""
+                console.print(f"  [bold yellow]⚠ Status:[/bold yellow] [yellow]Completed with warnings / degraded state{eval_info}[/yellow]")
             console.print(f"  Target: [bold]{profile.target_role or profile.target_goal}[/bold]")
             if roadmap.quality_score > 0:
-                console.print(f"  Quality Score: [bold green]{roadmap.quality_score:.1f}/100[/bold green]")
+                console.print(f"  Deterministic Quality Score: [bold green]{roadmap.quality_score:.1f}/100[/bold green]")
+            if getattr(roadmap, "evaluator_score", None) is not None:
+                console.print(f"  Evaluator Critique Score:    [dim]{roadmap.evaluator_score:.1f}/100 ({roadmap.evaluator_verdict})[/dim]")
             console.print()
             render_roadmap_overview(roadmap, progress_map)
             console.print()

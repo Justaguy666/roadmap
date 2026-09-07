@@ -24,9 +24,10 @@ OUTPUT EXPECTATIONS & CONCISENESS RULES:
 1. Phased Architecture: Organize learning into 3 to 4 logical sequential phases (e.g. 'Phase 1: Systems & Core Language', 'Phase 2: Algorithms & Game Architecture', 'Phase 3: Engine Deep-Dive & Advanced Portfolio'). Do NOT exceed 4 phases unless strictly necessary.
 2. Concise Descriptions: Keep all textual fields ('description', 'measurable_outcome', 'exit_criteria', 'expected_outcome') extremely concise (1-2 sentences maximum). Do NOT write multi-paragraph essays in JSON strings.
 3. Realistic Durations: Estimate durations in weeks that realistically fit within the user's available study hours per day and target deadline.
-4. Prerequisite Order:
+4. Prerequisite Order & DAG Integrity:
    - Fundamental prerequisites MUST come in earlier phases or precede dependent skills.
    - Never introduce advanced topics before their prerequisites (e.g. don't schedule Custom Shaders before Linear Algebra and C++).
+   - Meaningful Prerequisites: Skills should list ONLY true technical dependencies (e.g. 'C++' for 'Unreal Engine (C++)', '3D Math' for 'Game Physics'). Do NOT link unrelated parallel skills into artificial single-file linear chains; let independent foundations be learned concurrently.
 5. Milestone Checkpoints: Each phase MUST have 1 to 2 milestones with concrete, observable exit criteria.
 6. Milestone Projects: Each phase should culminate in 1 substantial project that builds portfolio proof.
 

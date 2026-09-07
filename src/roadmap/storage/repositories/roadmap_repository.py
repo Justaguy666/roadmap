@@ -42,6 +42,9 @@ class SqliteRoadmapRepository:
             skipped_skill_names_json=json.dumps(roadmap.skipped_skill_names),
             research_run_id=roadmap.research_run_id,
             quality_score=roadmap.quality_score,
+            validation_status=roadmap.validation_status,
+            evaluator_score=roadmap.evaluator_score,
+            evaluator_verdict=roadmap.evaluator_verdict,
             generated_at=roadmap.generated_at,
             last_updated_at=roadmap.last_updated_at,
         )
@@ -255,6 +258,9 @@ class SqliteRoadmapRepository:
             skipped_skill_names=json.loads(rm.skipped_skill_names_json),
             research_run_id=rm.research_run_id,
             quality_score=rm.quality_score if hasattr(rm, "quality_score") and rm.quality_score else 0.0,
+            validation_status=rm.validation_status if hasattr(rm, "validation_status") and rm.validation_status else "COMPLETED",
+            evaluator_score=rm.evaluator_score if hasattr(rm, "evaluator_score") else None,
+            evaluator_verdict=rm.evaluator_verdict if hasattr(rm, "evaluator_verdict") else None,
             generated_at=rm.generated_at,
             last_updated_at=rm.last_updated_at,
         )

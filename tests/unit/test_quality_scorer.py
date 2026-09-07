@@ -86,3 +86,53 @@ def test_quality_scorer_cycle_penalty() -> None:
 
     assert score.dependency_correctness == 0.0
     assert any("Dependency cycles detected" in n for n in score.scoring_notes)
+
+
+def test_quality_scorer_normalized_evidence_matching() -> None:
+    profile = UserProfile(
+        name="Test",
+        target_goal="Become a Game Developer",
+        target_role="Gameplay Programmer",
+        study_hours_per_day=3.0,
+        deadline_months=6,
+    )
+
+    # Descriptive skill names typical of LLM output
+    sk1 = Skill(profile_id=profile.id, name="C++ Programming", estimated_hours=40.0, priority=Priority.CRITICAL)
+    sk2 = Skill(profile_id=profile.id, name="Version Control (Git)", estimated_hours=20.0, priority=Priority.HIGH)
+
+    phase = RoadmapPhase(
+        roadmap_id="rm1",
+        phase_number=1,
+        name="Phase 1",
+        objective="Master foundations",
+        skills=[sk1, sk2],
+        projects=[Project(name="Test Project")],
+        estimated_weeks=4.0,
+    )
+
+    roadmap = Roadmap(
+        id="rm1",
+        profile_id=profile.id,
+        title="Game Dev Roadmap",
+        objective="Become gameplay programmer",
+        phases=[phase],
+        total_weeks=4,
+    )
+
+    # Canonical evidence keys
+    ev_summaries = {
+        "C++": SkillEvidenceSummary(skill_name="C++", evidence_count=5, unique_source_count=3, weighted_score=0.92),
+        "Version Control": SkillEvidenceSummary(skill_name="Version Control", evidence_count=2, unique_source_count=1, weighted_score=0.80),
+    }
+
+    score = QualityScorer.calculate_score(
+        roadmap=roadmap,
+        profile=profile,
+        evidence_summaries=ev_summaries,
+    )
+
+    # Should match both skills via normalization and achieve full evidence grounding
+    assert score.evidence_strength == 100.0
+    assert score.market_alignment > 80.0
+    assert score.overall_score >= 85.0
