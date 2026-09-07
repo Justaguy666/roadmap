@@ -41,7 +41,6 @@ from roadmap.application.use_cases.roadmap_use_cases import (
     GetRoadmapByVersionUseCase,
     ListRoadmapsUseCase,
 )
-from roadmap.infrastructure.embeddings.fake_embedding_provider import FakeEmbeddingProvider
 from roadmap.infrastructure.vector_store.sqlite_vector_store import SqliteVectorStore
 from roadmap.storage.database import get_session_factory
 from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
@@ -225,6 +224,7 @@ def get_embedding_provider() -> EmbeddingProvider:
 
 def get_rag_service(
     session: Session = Depends(get_db_session),
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
 ) -> RAGService:
     """
     Build RAGService wired to the request session.
@@ -232,18 +232,12 @@ def get_rag_service(
     Does NOT call the LLM — only semantic vector retrieval + context building.
     Preserves all evidence provenance (evidence_id, source_id, source_url).
     """
-    emb_provider: EmbeddingProvider
-    try:
-        emb_provider = get_embedding_provider()
-    except Exception:
-        emb_provider = FakeEmbeddingProvider()
-
     evidence_repo = SqliteEvidenceRepository(session)
     source_repo = SqliteSourceRepository(session)
     vector_store = SqliteVectorStore(session)
 
     retrieval_service = SemanticRetrievalService(
-        embedding_provider=emb_provider,
+        embedding_provider=embedding_provider,
         vector_store=vector_store,
         evidence_repo=evidence_repo,
         source_repo=source_repo,
@@ -260,18 +254,13 @@ def get_rag_service(
 
 def get_knowledge_indexing_service(
     session: Session = Depends(get_db_session),
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
 ) -> KnowledgeIndexingService:
     """Build KnowledgeIndexingService wired to the request session."""
-    emb_provider: EmbeddingProvider
-    try:
-        emb_provider = get_embedding_provider()
-    except Exception:
-        emb_provider = FakeEmbeddingProvider()
-
     return KnowledgeIndexingService(
         evidence_repo=SqliteEvidenceRepository(session),
         source_repo=SqliteSourceRepository(session),
         knowledge_repo=SqliteKnowledgeRepository(session),
-        embedding_provider=emb_provider,
+        embedding_provider=embedding_provider,
     )
 

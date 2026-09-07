@@ -44,6 +44,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from roadmap.api.middleware import RequestLoggingMiddleware
 from roadmap.api.routers import adaptations, feedback, health, knowledge, profiles, progress, roadmaps
+from roadmap.application.ports.embedding_provider import EmbeddingProviderError
+from roadmap.application.ports.llm_provider import MissingAPIKeyError
 from roadmap.config.settings import settings
 from roadmap.shared.logger import configure_logging, get_logger
 
@@ -83,8 +85,12 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
         db=settings.resolved_database_url.split("///")[-1] if "///" in settings.resolved_database_url else "configured",
     )
     settings.ensure_data_dir()
-    from roadmap.storage.database import create_all_tables
-    create_all_tables()
+    if settings.env != "production":
+        from roadmap.storage.database import create_all_tables
+
+        create_all_tables()
+    else:
+        logger.info("Production mode: schema managed via Alembic migrations ('alembic upgrade head')")
 
     yield
 
@@ -148,6 +154,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         for e in errors
     )
     return _error_response("VALIDATION_ERROR", summary, 422)
+
+
+@app.exception_handler(EmbeddingProviderError)
+async def embedding_provider_error_handler(request: Request, exc: EmbeddingProviderError) -> JSONResponse:
+    logger.error("Embedding provider error", path=request.url.path, exc_type=type(exc).__name__)
+    return _error_response("PROVIDER_ERROR", "Embedding provider is unavailable", 503)
+
+
+@app.exception_handler(MissingAPIKeyError)
+async def missing_api_key_error_handler(request: Request, exc: MissingAPIKeyError) -> JSONResponse:
+    logger.error("Missing API key error", path=request.url.path, provider=exc.provider)
+    return _error_response("PROVIDER_ERROR", f"Configuration error: missing API key for {exc.provider}", 503)
 
 
 @app.exception_handler(Exception)

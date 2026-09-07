@@ -1,4 +1,4 @@
-﻿"""Knowledge search endpoint: GET /api/v1/profiles/{profile_id}/knowledge/search."""
+"""Knowledge search endpoint: GET /api/v1/profiles/{profile_id}/knowledge/search."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from roadmap.api.dependencies import get_get_profile_use_case, get_rag_service
 from roadmap.api.schemas.knowledge import KnowledgeSearchResponse, KnowledgeSearchResultItem
+from roadmap.application.ports.embedding_provider import EmbeddingProviderError
+from roadmap.application.ports.llm_provider import MissingAPIKeyError
 from roadmap.application.services.rag_service import RAGService
 from roadmap.application.use_cases.profile_use_cases import GetProfileUseCase
 from roadmap.config.settings import settings
@@ -80,6 +82,16 @@ def knowledge_search(
             top_k=top_k,
             filters=filters,
         )
+    except (EmbeddingProviderError, MissingAPIKeyError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "PROVIDER_ERROR", "message": "Embedding provider is unavailable"}},
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"error": {"code": "PROVIDER_ERROR", "message": str(exc)}},
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

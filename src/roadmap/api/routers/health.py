@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from roadmap.api.dependencies import get_db_session
+from roadmap.shared.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Health"])
 
@@ -29,6 +32,7 @@ def health() -> dict[str, str]:
     response_description="Service readiness status",
 )
 def readiness(
+    response: Response,
     session: Session = Depends(get_db_session),
 ) -> dict[str, str]:
     """
@@ -46,7 +50,9 @@ def readiness(
         session.execute(text("SELECT 1"))
         db_status = "ok"
     except Exception as exc:
-        return {"status": "not_ready", "database": f"error: {exc!s}"}
+        logger.error("Readiness check database failure", exc_info=str(exc))
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "not_ready", "database": "unavailable"}
 
     return {"status": "ready", "database": db_status}
 

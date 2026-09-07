@@ -1,4 +1,4 @@
-﻿# ADR-022: API Foundation (FastAPI Adapter + Application Use Case Boundary)
+# ADR-022: API Foundation (FastAPI Adapter + Application Use Case Boundary)
 
 **Status:** Accepted  
 **Date:** 2026-09-08  
@@ -107,6 +107,24 @@ The adaptation endpoint `POST /api/v1/profiles/{id}/adaptations/prepare` only pr
 ### 9. Test Isolation & Preservation of Production DB
 
 API tests use an in-memory SQLite database (`sqlite:///:memory:`) configured with `StaticPool` to ensure cross-request connection consistency without writing to disk. An autouse fixture isolates `settings.database_url` and calls `reset_engine()` to ensure `%USERPROFILE%\.roadmap\roadmap.db` is never touched during automated testing.
+
+### 10. Production Database Initialization Policy
+
+In development and test environments (`settings.env != "production"`), `create_all_tables()` is permitted during startup for developer convenience. In production (`settings.env == "production"`), `create_all_tables()` is strictly disabled. The database schema must be established exclusively via Alembic migrations:
+```bash
+alembic upgrade head
+# then start API
+roadmap api
+```
+
+### 11. Strict Provider Failure & No Silent Fake Fallback
+
+Production configuration failure (e.g. missing API keys or upstream provider outages) must never silently switch to `FakeEmbeddingProvider`. If an embedding provider is unavailable or misconfigured, the API returns an explicit HTTP 503 `PROVIDER_ERROR`. Fake providers are permitted exclusively in automated test suites via explicit dependency injection overrides (`app.dependency_overrides`).
+
+### 12. Readiness Probe Information Disclosure Sanitization
+
+The `/health/readiness` endpoint verifies connectivity via `SELECT 1`. If an error occurs, it returns `{"status": "not_ready", "database": "unavailable"}` with HTTP 503. Internal SQL syntax, driver error codes, and database schema identifiers are logged strictly on the server and are never disclosed in the HTTP response.
+
 
 ---
 
