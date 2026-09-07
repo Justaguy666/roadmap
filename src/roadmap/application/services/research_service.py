@@ -174,17 +174,18 @@ class ResearchService:
                 self.budget_manager.commit(
                     reservation=plan_res,
                     success=True,
-                    actual_requests=1,
+                    actual_requests=getattr(self.llm, "last_request_count", 1),
                 )
         except LLMDailyQuotaExceededError as qe:
             err_msg = f"Gemini daily quota exhausted during research planning: {qe}"
             logger.error(err_msg)
             if self.budget_manager and plan_res:
+                attempts_done = getattr(qe, "attempts", getattr(self.llm, "last_request_count", 1))
                 self.budget_manager.commit(
                     reservation=plan_res,
                     success=False,
                     failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED,
-                    actual_requests=1,
+                    actual_requests=attempts_done,
                     error_message=str(qe),
                 )
             run.status = "failed"
@@ -201,11 +202,12 @@ class ResearchService:
             logger.warning("Research planning failed, using fallback query list", error=str(e))
             if self.budget_manager and plan_res:
                 fc = getattr(e, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                attempts_done = getattr(e, "attempts", getattr(self.llm, "last_request_count", 1))
                 self.budget_manager.commit(
                     reservation=plan_res,
                     success=False,
                     failure_category=fc,
-                    actual_requests=1,
+                    actual_requests=attempts_done,
                     error_message=str(e),
                 )
             plan = ResearchPlan(
@@ -420,7 +422,7 @@ class ResearchService:
                     self.budget_manager.commit(
                         reservation=batch_res,
                         success=True,
-                        actual_requests=1,
+                        actual_requests=getattr(self.llm, "last_request_count", 1),
                     )
             except LLMDailyQuotaExceededError as dqe:
                 err_msg = f"DAILY_QUOTA_EXCEEDED during batch {b_idx}: {dqe}"
@@ -428,11 +430,12 @@ class ResearchService:
                 errors.append(err_msg)
                 quota_exhausted = True
                 if self.budget_manager and batch_res:
+                    attempts_done = getattr(dqe, "attempts", getattr(self.llm, "last_request_count", 1))
                     self.budget_manager.commit(
                         reservation=batch_res,
                         success=False,
                         failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED,
-                        actual_requests=1,
+                        actual_requests=attempts_done,
                         error_message=str(dqe),
                     )
                 notify("Gemini daily quota exhausted. Stopping further extraction.")
@@ -454,7 +457,7 @@ class ResearchService:
                             self.budget_manager.commit(
                                 reservation=batch_res,
                                 success=True,
-                                actual_requests=1,
+                                actual_requests=getattr(self.llm, "last_request_count", 1),
                             )
                     except Exception as retry_exc:
                         err_msg = f"Batch extraction retry failed: {retry_exc}"
@@ -462,11 +465,12 @@ class ResearchService:
                         errors.append(err_msg)
                         is_dq = isinstance(retry_exc, LLMDailyQuotaExceededError)
                         if self.budget_manager and batch_res:
+                            attempts_done = getattr(retry_exc, "attempts", getattr(self.llm, "last_request_count", 1))
                             self.budget_manager.commit(
                                 reservation=batch_res,
                                 success=False,
                                 failure_category=FailureCategory.PROVIDER_DAILY_QUOTA_EXCEEDED if is_dq else FailureCategory.PROVIDER_RATE_LIMITED,
-                                actual_requests=1,
+                                actual_requests=attempts_done,
                                 error_message=str(retry_exc),
                             )
                         if is_dq:
@@ -476,11 +480,12 @@ class ResearchService:
                     errors.append(f"Rate limit exceeded on batch {b_idx}: {rle}")
                     quota_exhausted = True
                     if self.budget_manager and batch_res:
+                        attempts_done = getattr(rle, "attempts", getattr(self.llm, "last_request_count", 1))
                         self.budget_manager.commit(
                             reservation=batch_res,
                             success=False,
                             failure_category=FailureCategory.PROVIDER_RATE_LIMITED,
-                            actual_requests=1,
+                            actual_requests=attempts_done,
                             error_message=str(rle),
                         )
                     break
@@ -490,11 +495,12 @@ class ResearchService:
                 errors.append(err_msg)
                 if self.budget_manager and batch_res:
                     fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                    attempts_done = getattr(exc, "attempts", getattr(self.llm, "last_request_count", 1))
                     self.budget_manager.commit(
                         reservation=batch_res,
                         success=False,
                         failure_category=fc,
-                        actual_requests=1,
+                        actual_requests=attempts_done,
                         error_message=str(exc),
                     )
                 continue

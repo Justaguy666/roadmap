@@ -78,6 +78,8 @@ class TestGeminiProviderCompletions:
         }
         mock_resp = MagicMock()
         mock_resp.text = json.dumps(dummy_data)
+        mock_resp.candidates = []
+        mock_resp.usage_metadata = None
         mock_provider._client.models.generate_content.return_value = mock_resp
 
         result = mock_provider.complete(
@@ -129,6 +131,8 @@ class TestGeminiProviderCompletions:
     def test_validation_error_on_invalid_json(self, mock_provider: GeminiProvider) -> None:
         mock_resp = MagicMock()
         mock_resp.text = "invalid json {{"
+        mock_resp.candidates = []
+        mock_resp.usage_metadata = None
         mock_provider._client.models.generate_content.return_value = mock_resp
 
         with pytest.raises(LLMValidationError) as exc_info:
@@ -137,6 +141,112 @@ class TestGeminiProviderCompletions:
                 response_model=GoalAnalysisResult,
             )
         assert "Failed to parse or validate schema" in str(exc_info.value)
+        assert exc_info.value.attempts == 3
+        assert mock_provider.last_request_count == 3
+        assert mock_provider._client.models.generate_content.call_count == 3
+
+    def test_single_attempt_success_request_count(self, mock_provider: GeminiProvider) -> None:
+        dummy_data = {
+            "interpreted_goal": "Become a senior backend developer.",
+            "target_role": "Backend Engineer",
+            "competencies": [
+                CompetencyDraft(
+                    name="API Design",
+                    description="Building RESTful services",
+                    skill_names=["FastAPI"],
+                ).model_dump()
+            ],
+            "required_skills": [
+                RequiredSkillDraft(
+                    name="Python",
+                    description="Core programming language",
+                ).model_dump()
+            ],
+            "confidence": 0.9,
+        }
+        mock_resp = MagicMock()
+        mock_resp.text = json.dumps(dummy_data)
+        mock_resp.candidates = []
+        mock_resp.usage_metadata = None
+        mock_provider._client.models.generate_content.return_value = mock_resp
+
+        result = mock_provider.complete(
+            messages=[LLMMessage.user("Test")],
+            response_model=GoalAnalysisResult,
+        )
+        assert isinstance(result, GoalAnalysisResult)
+        assert mock_provider.last_request_count == 1
+        assert mock_provider._client.models.generate_content.call_count == 1
+
+    def test_retry_success_with_corrective_feedback(self, mock_provider: GeminiProvider) -> None:
+        # Attempt 1: malformed json; Attempt 2: valid json
+        dummy_data = {
+            "interpreted_goal": "Become a senior backend developer.",
+            "target_role": "Backend Engineer",
+            "competencies": [
+                CompetencyDraft(
+                    name="API Design",
+                    description="Building RESTful services",
+                    skill_names=["FastAPI"],
+                ).model_dump()
+            ],
+            "required_skills": [
+                RequiredSkillDraft(
+                    name="Python",
+                    description="Core programming language",
+                ).model_dump()
+            ],
+            "confidence": 0.9,
+        }
+        resp1 = MagicMock()
+        resp1.text = '{"interpreted_goal": "abrupt string...'
+        resp1.candidates = []
+        resp1.usage_metadata = None
+
+        resp2 = MagicMock()
+        resp2.text = json.dumps(dummy_data)
+        resp2.candidates = []
+        resp2.usage_metadata = None
+
+        mock_provider._client.models.generate_content.side_effect = [resp1, resp2]
+
+        result = mock_provider.complete(
+            messages=[LLMMessage.user("Test")],
+            response_model=GoalAnalysisResult,
+        )
+        assert isinstance(result, GoalAnalysisResult)
+        assert mock_provider.last_request_count == 2
+        assert mock_provider._client.models.generate_content.call_count == 2
+
+        # Verify corrective feedback was sent on second call
+        second_call_contents = mock_provider._client.models.generate_content.call_args_list[1].kwargs["contents"]
+        feedback_part = second_call_contents[-1].parts[0].text
+        assert "The previous output failed validation" in feedback_part
+        assert "Return ONLY valid, well-formed JSON" in feedback_part
+
+    def test_quota_exhausted_during_retry_immediately_halts(self, mock_provider: GeminiProvider) -> None:
+        # Attempt 1: malformed; Attempt 2: 429 daily quota
+        resp1 = MagicMock()
+        resp1.text = "invalid json"
+        resp1.candidates = []
+        resp1.usage_metadata = None
+
+        quota_err = ClientError(
+            429,
+            {"error": {"message": "RESOURCE_EXHAUSTED: GenerateRequestsPerDayPerModel-FreeTier limit exceeded"}},
+        )
+
+        mock_provider._client.models.generate_content.side_effect = [resp1, quota_err]
+
+        from roadmap.application.ports.llm_provider import LLMDailyQuotaExceededError
+        with pytest.raises(LLMDailyQuotaExceededError) as exc_info:
+            mock_provider.complete(
+                messages=[LLMMessage.user("Test")],
+                response_model=GoalAnalysisResult,
+            )
+        assert exc_info.value.attempts == 2
+        assert mock_provider.last_request_count == 2
+        assert mock_provider._client.models.generate_content.call_count == 2
 
     def test_generic_api_error_mapped(self, mock_provider: GeminiProvider) -> None:
         mock_provider._client.models.generate_content.side_effect = APIError(
@@ -148,3 +258,4 @@ class TestGeminiProviderCompletions:
                 messages=[LLMMessage.user("Hello")],
                 response_model=GoalAnalysisResult,
             )
+

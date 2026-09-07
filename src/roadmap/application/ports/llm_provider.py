@@ -71,6 +71,7 @@ class LLMProvider(Protocol):
 
     provider_name: str
     model_name: str
+    last_request_count: int
 
     def complete(
         self,
@@ -142,9 +143,15 @@ class LLMRateLimitError(LLMProviderError):
 
     failure_category = FailureCategory.PROVIDER_RATE_LIMITED
 
-    def __init__(self, message: str, retry_after: float | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        retry_after: float | None = None,
+        attempts: int = 1,
+    ) -> None:
         super().__init__(message)
         self.retry_after = retry_after
+        self.attempts = attempts
 
 
 class LLMDailyQuotaExceededError(LLMRateLimitError):

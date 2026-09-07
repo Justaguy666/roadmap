@@ -359,17 +359,18 @@ class GenerateRoadmapUseCase:
                 self.budget_manager.commit(
                     reservation=reservation,
                     success=True,
-                    actual_requests=1,
+                    actual_requests=getattr(self.llm_provider, "last_request_count", 1),
                 )
             return draft
         except Exception as exc:
             if self.budget_manager and reservation:
                 fc = getattr(exc, "failure_category", FailureCategory.UNKNOWN_PROVIDER_ERROR)
+                attempts_done = getattr(exc, "attempts", getattr(self.llm_provider, "last_request_count", 1))
                 self.budget_manager.commit(
                     reservation=reservation,
                     success=False,
                     failure_category=fc,
-                    actual_requests=1,
+                    actual_requests=attempts_done,
                     error_message=str(exc),
                 )
             raise

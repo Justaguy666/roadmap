@@ -60,6 +60,7 @@ class OpenAIProvider(LLMProvider):
         self.provider_name = "openai"
         self.model = model or settings.llm_model or settings.openai_model or "gpt-4o"
         self.model_name = self.model
+        self.last_request_count: int = 1
         self.default_temperature = temperature if temperature is not None else settings.llm_temperature
         self.default_max_tokens = max_tokens or settings.llm_max_tokens
         self.default_max_retries = max_retries or settings.llm_max_retries

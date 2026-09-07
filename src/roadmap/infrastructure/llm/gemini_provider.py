@@ -58,6 +58,7 @@ class GeminiProvider(LLMProvider):
         self.provider_name = "gemini"
         self.model = model or settings.llm_model or settings.gemini_model or DEFAULT_GEMINI_MODEL
         self.model_name = self.model
+        self.last_request_count: int = 1
         self.default_temperature = temperature if temperature is not None else settings.llm_temperature
         self.default_max_tokens = max_tokens or settings.llm_max_tokens
         self.default_max_retries = max_retries or settings.llm_max_retries
@@ -177,20 +178,70 @@ class GeminiProvider(LLMProvider):
             ) from e
 
         last_error: Exception | None = None
+        current_contents = list(contents)
+        self.last_request_count = 0
+
         for attempt in range(1, retries + 1):
+            self.last_request_count = attempt
+            text_content: str | None = None
             try:
                 response = self._client.models.generate_content(
                     model=self.model,
-                    contents=contents,
+                    contents=current_contents,
                     config=config,
                 )
 
                 text_content = response.text
+
+                # Diagnostics & Truncation detection
+                finish_reason = None
+                usage_meta: dict[str, Any] = {}
+                candidate_count = 0
+                if hasattr(response, "candidates") and response.candidates:
+                    candidate_count = len(response.candidates)
+                    first_cand = response.candidates[0]
+                    finish_reason = getattr(first_cand, "finish_reason", None)
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    um = response.usage_metadata
+                    usage_meta = {
+                        "prompt_tokens": getattr(um, "prompt_token_count", None),
+                        "candidates_tokens": getattr(um, "candidates_token_count", None),
+                        "thoughts_tokens": getattr(um, "thoughts_token_count", None),
+                        "total_tokens": getattr(um, "total_token_count", None),
+                    }
+
+                text_len = len(text_content) if text_content else 0
+                text_preview_start = (text_content[:150] + "...") if text_content else "<empty>"
+                text_preview_end = ("..." + text_content[-150:]) if text_content and len(text_content) > 150 else ""
+
+                logger.info(
+                    "Gemini response diagnostic",
+                    attempt=attempt,
+                    model=self.model,
+                    candidate_count=candidate_count,
+                    finish_reason=str(finish_reason),
+                    text_length=text_len,
+                    text_preview_start=text_preview_start,
+                    text_preview_end=text_preview_end,
+                    usage=usage_meta,
+                )
+
+                finish_reason_str = str(finish_reason)
+                if "MAX_TOKENS" in finish_reason_str:
+                    logger.warning(
+                        "Gemini response was truncated due to max_output_tokens ceiling",
+                        model=self.model,
+                        attempt=attempt,
+                        tokens_ceiling=tokens,
+                        finish_reason=finish_reason_str,
+                        usage=usage_meta,
+                    )
+
                 if not text_content:
                     raise LLMValidationError(
                         model_name=self.model,
                         attempts=attempt,
-                        last_error="Gemini returned empty response text",
+                        last_error=f"Gemini returned empty response text (finish_reason={finish_reason})",
                     )
 
                 # Parse and validate with Pydantic
@@ -198,10 +249,13 @@ class GeminiProvider(LLMProvider):
                     data = json.loads(text_content)
                     result = response_model.model_validate(data)
                 except (json.JSONDecodeError, ValidationError) as ve:
+                    err_detail = str(ve)
+                    if "MAX_TOKENS" in finish_reason_str:
+                        err_detail = f"Output truncated by token limit ({tokens} tokens ceiling): {err_detail}"
                     raise LLMValidationError(
                         model_name=self.model,
                         attempts=attempt,
-                        last_error=f"Failed to parse or validate schema: {ve}",
+                        last_error=f"Failed to parse or validate schema: {err_detail}",
                     ) from ve
 
                 elapsed = time.perf_counter() - start_time
@@ -209,6 +263,7 @@ class GeminiProvider(LLMProvider):
                     "Structured Gemini LLM completion successful",
                     model=self.model,
                     response_model=response_model.__name__,
+                    attempts_needed=attempt,
                     duration_seconds=round(elapsed, 2),
                 )
                 return result
@@ -223,9 +278,29 @@ class GeminiProvider(LLMProvider):
                 )
                 if attempt == retries:
                     raise
+
+                # Add corrective feedback to conversation contents for next retry attempt
+                feedback_prompt = (
+                    f"The previous output failed validation with error:\n{e.last_error}\n\n"
+                    "Return ONLY valid, well-formed JSON matching the exact required schema. "
+                    "Keep string fields concise (1-2 sentences maximum) and ensure the JSON output is fully closed."
+                )
+                current_contents.append(
+                    types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text=text_content or "{}")],
+                    )
+                )
+                current_contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=feedback_prompt)],
+                    )
+                )
+
             except ClientError as e:
                 err_msg = str(e)
-                logger.error("Gemini ClientError", error=err_msg, code=getattr(e, "code", None))
+                logger.error("Gemini ClientError", error=err_msg, code=getattr(e, "code", None), attempt=attempt)
                 code = getattr(e, "code", None)
                 if code == 400 and ("API_KEY_INVALID" in err_msg or "INVALID_ARGUMENT" in err_msg):
                     raise LLMAuthenticationError(f"Gemini authentication failed: {err_msg}") from e
@@ -254,22 +329,25 @@ class GeminiProvider(LLMProvider):
                         raise LLMDailyQuotaExceededError(
                             f"DAILY_QUOTA_EXCEEDED: Gemini daily free-tier quota has been exhausted. {err_msg}",
                             retry_after=retry_seconds,
+                            attempts=attempt,
                         ) from e
                     raise LLMRateLimitError(
                         f"Gemini quota/rate limit exceeded: {err_msg}",
                         retry_after=retry_seconds,
+                        attempts=attempt,
                     ) from e
                 raise LLMProviderError(f"Gemini Client error ({code}): {err_msg}") from e
             except ServerError as e:
-                logger.error("Gemini ServerError", error=str(e))
+                logger.error("Gemini ServerError", error=str(e), attempt=attempt)
                 last_error = e
                 if attempt == retries:
                     raise LLMProviderError(f"Gemini Server error: {e}") from e
+                time.sleep(min(2.0 ** attempt, 8.0))
             except APIError as e:
-                logger.error("Gemini APIError", error=str(e))
+                logger.error("Gemini APIError", error=str(e), attempt=attempt)
                 raise LLMProviderError(f"Gemini API error: {e}") from e
             except Exception as e:
-                logger.error("Unexpected error during Gemini completion", error=str(e))
+                logger.error("Unexpected error during Gemini completion", error=str(e), attempt=attempt)
                 raise LLMProviderError(f"Unexpected Gemini completion error: {e}") from e
 
         if last_error:
@@ -284,6 +362,7 @@ class GeminiProvider(LLMProvider):
         """Execute free-text completion without response schema enforcement."""
         sys_instruction, contents = self._split_messages(messages)
         temp = temperature if temperature is not None else self.default_temperature
+        self.last_request_count = 1
 
         start_time = time.perf_counter()
         logger.info(

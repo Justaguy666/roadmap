@@ -257,6 +257,7 @@ class FakeLLMProvider(LLMProvider):
     ) -> None:
         self.provider_name = provider_name
         self.model_name = model_name
+        self.last_request_count: int = 1
         self.goal_analysis_result = goal_analysis_result or get_default_fake_goal_analysis()
         self.roadmap_result = roadmap_result or get_default_fake_roadmap_result()
         self.simulate_error = simulate_error

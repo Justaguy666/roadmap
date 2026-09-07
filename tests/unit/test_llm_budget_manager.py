@@ -176,3 +176,33 @@ def test_reservation_release() -> None:
     # Capacity freed
     allowed, _ = mgr.check_budget(LLMWorkflow.OTHER, requests=2)
     assert allowed
+
+
+def test_budget_multi_attempt_commit_accounting() -> None:
+    repo = InMemoryLLMUsageRepository()
+    mgr = LLMBudgetManager(
+        repository=repo,
+        daily_budget=5,
+        workflow_budgets={LLMWorkflow.GENERATION: 4},
+    )
+
+    # Reserve 1 estimated request
+    res = mgr.reserve(LLMWorkflow.GENERATION, operation="generate_roadmap", estimated_requests=1)
+
+    # Commit after 3 attempts (e.g. 2 validation retries then success)
+    record = mgr.commit(
+        res,
+        success=True,
+        provider="gemini",
+        model="gemini-3.5-flash",
+        actual_requests=3,
+    )
+    assert record.actual_requests == 3
+    assert repo.records[0].actual_requests == 3
+
+    # Total used is now 3 against generation budget of 4
+    # Attempting to reserve 2 requests should be blocked by budget
+    with pytest.raises(ApplicationBudgetExceededError) as exc_info:
+        mgr.reserve(LLMWorkflow.GENERATION, operation="revision", estimated_requests=2)
+    assert "Workflow 'generation' LLM budget exhausted" in str(exc_info.value)
+
