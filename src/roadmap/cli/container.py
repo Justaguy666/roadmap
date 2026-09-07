@@ -14,11 +14,17 @@ from __future__ import annotations
 from collections.abc import Generator
 from contextlib import contextmanager
 
+from roadmap.application.ports.embedding_provider import EmbeddingProvider
 from roadmap.application.ports.infrastructure import Cache, WebFetcher
 from roadmap.application.ports.llm_provider import LLMProvider
 from roadmap.application.ports.search_provider import SearchProvider
+from roadmap.application.services.context_builder import EvidenceContextBuilder
+from roadmap.application.services.grounded_reasoning_service import GroundedReasoningService
+from roadmap.application.services.knowledge_indexing_service import KnowledgeIndexingService
 from roadmap.application.services.llm_budget_manager import LLMBudgetManager
+from roadmap.application.services.rag_service import RAGService
 from roadmap.application.services.research_service import ResearchService
+from roadmap.application.services.semantic_retrieval_service import SemanticRetrievalService
 from roadmap.application.use_cases.adapt_roadmap import AdaptRoadmapUseCase
 from roadmap.application.use_cases.analyze_goal import AnalyzeGoalUseCase
 from roadmap.application.use_cases.generate_roadmap import GenerateRoadmapUseCase
@@ -29,11 +35,14 @@ from roadmap.application.use_cases.profile_use_cases import (
     UpdateProfileUseCase,
 )
 from roadmap.config.settings import settings
+from roadmap.infrastructure.embeddings.fake_embedding_provider import FakeEmbeddingProvider
 from roadmap.infrastructure.llm.fake_provider import FakeLLMProvider
 from roadmap.infrastructure.llm.openai_provider import OpenAIProvider
+from roadmap.infrastructure.vector_store.sqlite_vector_store import SqliteVectorStore
 from roadmap.storage.database import create_all_tables, get_session
 from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
 from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
+from roadmap.storage.repositories.knowledge_repository import SqliteKnowledgeRepository
 from roadmap.storage.repositories.llm_usage_repository import SqliteLLMUsageRepository
 from roadmap.storage.repositories.profile_repository import SqliteProfileRepository
 from roadmap.storage.repositories.progress_repository import SqliteProgressRepository
@@ -120,11 +129,39 @@ def get_web_fetcher() -> WebFetcher:
     return HttpWebFetcher()
 
 
+def get_embedding_provider(
+    provider_name: str | None = None,
+    api_key: str | None = None,
+    model: str | None = None,
+    dimension: int | None = None,
+) -> EmbeddingProvider:
+    """Factory function for obtaining an EmbeddingProvider instance."""
+    selected = (provider_name or settings.embedding_provider).lower().strip()
+
+    if selected in ("fake", "mock", "test"):
+        return FakeEmbeddingProvider(
+            dimension=dimension or settings.embedding_dimension,
+            model_name=model or settings.embedding_model,
+        )
+
+    if selected in ("gemini", "google"):
+        from roadmap.infrastructure.embeddings.gemini_embedding_provider import GeminiEmbeddingProvider
+
+        return GeminiEmbeddingProvider(
+            api_key=api_key or settings.gemini_api_key,
+            model=model or settings.embedding_model,
+            dimension=dimension or settings.embedding_dimension,
+        )
+
+    raise ValueError(f"Unsupported embedding provider: {selected}. Valid options: 'gemini', 'fake', 'mock'")
+
+
 def get_cache() -> Cache:
     """Factory for Cache."""
     from roadmap.infrastructure.cache.disk_cache import DiskCacheService
 
     return DiskCacheService(cache_dir=settings.cache_dir, default_ttl_seconds=settings.cache_ttl_hours * 3600)
+
 
 
 @contextmanager
@@ -343,3 +380,76 @@ def get_adaptation_context(
         )
 
         yield (profile_repo, roadmap_repo, adapt_uc)
+
+
+@contextmanager
+def get_knowledge_context(
+    embedding_provider: EmbeddingProvider | None = None,
+) -> Generator[
+    tuple[
+        SqliteEvidenceRepository,
+        SqliteSourceRepository,
+        SqliteKnowledgeRepository,
+        KnowledgeIndexingService,
+    ],
+    None,
+    None,
+]:
+    """Yield repositories and KnowledgeIndexingService bound to a database session."""
+    provider = embedding_provider or get_embedding_provider()
+    with get_session() as session:
+        evidence_repo = SqliteEvidenceRepository(session)
+        source_repo = SqliteSourceRepository(session)
+        knowledge_repo = SqliteKnowledgeRepository(session)
+
+        indexing_service = KnowledgeIndexingService(
+            evidence_repo=evidence_repo,
+            source_repo=source_repo,
+            knowledge_repo=knowledge_repo,
+            embedding_provider=provider,
+        )
+
+        yield (evidence_repo, source_repo, knowledge_repo, indexing_service)
+
+
+@contextmanager
+def get_rag_context(
+    embedding_provider: EmbeddingProvider | None = None,
+    llm_provider: LLMProvider | None = None,
+) -> Generator[
+    tuple[
+        RAGService,
+        GroundedReasoningService,
+        SqliteKnowledgeRepository,
+    ],
+    None,
+    None,
+]:
+    """Yield RAGService, GroundedReasoningService, and knowledge repo bound to a database session."""
+    emb_provider = embedding_provider or get_embedding_provider()
+    model_provider = llm_provider or get_llm_provider()
+
+    with get_session() as session:
+        evidence_repo = SqliteEvidenceRepository(session)
+        source_repo = SqliteSourceRepository(session)
+        knowledge_repo = SqliteKnowledgeRepository(session)
+
+        vector_store = SqliteVectorStore(session)
+        retrieval_service = SemanticRetrievalService(
+            embedding_provider=emb_provider,
+            vector_store=vector_store,
+            evidence_repo=evidence_repo,
+            source_repo=source_repo,
+        )
+        context_builder = EvidenceContextBuilder(
+            evidence_repo=evidence_repo,
+            source_repo=source_repo,
+        )
+        rag_service = RAGService(
+            retrieval_service=retrieval_service,
+            context_builder=context_builder,
+        )
+        grounded_service = GroundedReasoningService(llm_provider=model_provider)
+
+        yield (rag_service, grounded_service, knowledge_repo)
+

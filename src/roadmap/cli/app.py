@@ -28,6 +28,7 @@ from roadmap.cli.commands import (
     generate_cmd,
     graph_cmd,
     init_cmd,
+    knowledge_cmd,
     profile_cmd,
     progress_cmd,
     quota_cmd,
@@ -68,6 +69,7 @@ app.add_typer(research_cmd.research_app, name="research", help="Research market 
 app.add_typer(sources_cmd.sources_app, name="sources", help="List all research sources and citations.")
 app.add_typer(graph_cmd.graph_app, name="graph", help="Visualize and validate the skill prerequisite dependency DAG.")
 app.add_typer(evidence_cmd.evidence_app, name="evidence", help="Inspect aggregated research evidence for a skill.")
+app.add_typer(knowledge_cmd.knowledge_app, name="knowledge", help="Knowledge Intelligence, embeddings, and semantic evidence retrieval.")
 
 # ── Backwards-compatibility aliases / stubs ──────────────────────────────────
 @app.command(name="complete", help="Mark a skill as 100% complete.")

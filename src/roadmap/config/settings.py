@@ -170,6 +170,59 @@ class Settings(BaseSettings):
         description="Maximum character budget per page during batch extraction",
     )
 
+    # ── Knowledge Intelligence & Embeddings (MVP-6) ──────────────────────
+    embedding_provider: str = Field(
+        default="fake",
+        validation_alias=AliasChoices("ROADMAP_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"),
+        description="Embedding provider name (fake | gemini | openai)",
+    )
+    embedding_model: str = Field(
+        default="gemini-embedding-001",
+        validation_alias=AliasChoices("ROADMAP_EMBEDDING_MODEL", "EMBEDDING_MODEL"),
+        description="Embedding model name",
+    )
+    embedding_dimension: int = Field(
+        default=768,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_EMBEDDING_DIMENSION", "EMBEDDING_DIMENSION"),
+        description="Expected embedding vector dimension (e.g. 768 for gemini-embedding-001)",
+    )
+    knowledge_chunk_size: int = Field(
+        default=500,
+        ge=50,
+        le=5000,
+        validation_alias=AliasChoices("ROADMAP_KNOWLEDGE_CHUNK_SIZE", "KNOWLEDGE_CHUNK_SIZE"),
+        description="Target character size for knowledge chunks",
+    )
+    knowledge_chunk_overlap: int = Field(
+        default=50,
+        ge=0,
+        le=1000,
+        validation_alias=AliasChoices("ROADMAP_KNOWLEDGE_CHUNK_OVERLAP", "KNOWLEDGE_CHUNK_OVERLAP"),
+        description="Character overlap between consecutive chunks",
+    )
+    knowledge_max_chunks_per_doc: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        validation_alias=AliasChoices("ROADMAP_KNOWLEDGE_MAX_CHUNKS_PER_DOC", "KNOWLEDGE_MAX_CHUNKS_PER_DOC"),
+        description="Maximum allowed chunks per single knowledge document to bound indexing",
+    )
+    rag_top_k_default: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        validation_alias=AliasChoices("ROADMAP_RAG_TOP_K_DEFAULT", "RAG_TOP_K_DEFAULT"),
+        description="Default number of top semantic results to retrieve",
+    )
+    rag_similarity_threshold: float = Field(
+        default=0.4,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices("ROADMAP_RAG_SIMILARITY_THRESHOLD", "RAG_SIMILARITY_THRESHOLD"),
+        description="Minimum cosine similarity score required for retrieved chunks",
+    )
+
     @field_validator("data_dir", mode="before")
     @classmethod
     def expand_data_dir(cls, v: object) -> Path:

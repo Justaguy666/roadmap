@@ -6,6 +6,17 @@ from roadmap.domain.entities.evidence_aggregation import (
     SkillEvidenceSummary,
 )
 from roadmap.domain.entities.goal import Competency, Goal
+from roadmap.domain.entities.knowledge import (
+    DocumentStatus,
+    EmbeddingRecord,
+    EvidenceContext,
+    EvidenceContextBlock,
+    KnowledgeChunk,
+    KnowledgeDocument,
+    RetrievalFilter,
+    RetrievalQuery,
+    RetrievalResult,
+)
 from roadmap.domain.entities.learning_resource import LearningResource, Project
 from roadmap.domain.entities.llm_budget import (
     BudgetAllocation,
@@ -23,8 +34,14 @@ from roadmap.domain.entities.user_profile import UserProfile
 __all__ = [
     "BudgetAllocation",
     "Competency",
+    "DocumentStatus",
+    "EmbeddingRecord",
     "Evidence",
+    "EvidenceContext",
+    "EvidenceContextBlock",
     "Goal",
+    "KnowledgeChunk",
+    "KnowledgeDocument",
     "LLMProviderState",
     "LLMQuotaStatus",
     "LLMReservation",
@@ -36,6 +53,9 @@ __all__ = [
     "Project",
     "Recommendation",
     "ResearchRun",
+    "RetrievalFilter",
+    "RetrievalQuery",
+    "RetrievalResult",
     "Roadmap",
     "RoadmapPhase",
     "RoadmapQualityScore",
@@ -48,3 +68,4 @@ __all__ = [
     "Source",
     "UserProfile",
 ]
+

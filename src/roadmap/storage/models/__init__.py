@@ -1,6 +1,11 @@
 from roadmap.storage.models.adaptation_model import RoadmapAdaptationModel
 from roadmap.storage.models.base import Base
 from roadmap.storage.models.feedback_model import LearningFeedbackModel
+from roadmap.storage.models.knowledge_model import (
+    EmbeddingRecordModel,
+    KnowledgeChunkModel,
+    KnowledgeDocumentModel,
+)
 from roadmap.storage.models.llm_usage_model import (
     LLMProviderStateModel,
     LLMUsageRecordModel,
@@ -23,11 +28,14 @@ from roadmap.storage.models.user_profile_model import UserProfileModel
 
 __all__ = [
     "Base",
+    "EmbeddingRecordModel",
     "EvidenceModel",
+    "KnowledgeChunkModel",
+    "KnowledgeDocumentModel",
     "LearningFeedbackModel",
+    "LearningResourceModel",
     "LLMProviderStateModel",
     "LLMUsageRecordModel",
-    "LearningResourceModel",
     "MilestoneModel",
     "ProgressRecordModel",
     "ProjectModel",
@@ -41,3 +49,4 @@ __all__ = [
     "SourceModel",
     "UserProfileModel",
 ]
+
