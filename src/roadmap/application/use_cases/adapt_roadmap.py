@@ -15,6 +15,12 @@ from datetime import UTC, datetime
 from roadmap.agents.adaptation_agent import AdaptationAgent
 from roadmap.agents.schemas.adaptation import AdaptationProposal
 from roadmap.application.graph.validator import SkillGraphValidator
+from roadmap.application.ports.repositories import (
+    AdaptationRepository,
+    FeedbackRepository,
+    ProgressRepository,
+    RoadmapRepository,
+)
 from roadmap.domain.entities.adaptation import DeviationReport, RoadmapAdaptation
 from roadmap.domain.entities.progress_record import ProgressRecord
 from roadmap.domain.entities.roadmap import Roadmap, RoadmapPhase
@@ -23,10 +29,6 @@ from roadmap.domain.services.deviation_detector import DeviationDetector
 from roadmap.domain.value_objects.enums import DependencyType, Priority, SkillLevel, SkillStatus
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
-from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
-from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
-from roadmap.storage.repositories.progress_repository import SqliteProgressRepository
-from roadmap.storage.repositories.roadmap_repository import SqliteRoadmapRepository
 
 logger = get_logger(__name__)
 
@@ -53,10 +55,10 @@ class AdaptRoadmapUseCase:
 
     def __init__(
         self,
-        roadmap_repo: SqliteRoadmapRepository,
-        progress_repo: SqliteProgressRepository,
-        feedback_repo: SqliteFeedbackRepository,
-        adaptation_repo: SqliteAdaptationRepository,
+        roadmap_repo: RoadmapRepository,
+        progress_repo: ProgressRepository,
+        feedback_repo: FeedbackRepository,
+        adaptation_repo: AdaptationRepository,
         adaptation_agent: AdaptationAgent,
         deviation_detector: DeviationDetector | None = None,
         graph_validator: SkillGraphValidator | None = None,

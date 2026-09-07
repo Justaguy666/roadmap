@@ -1,3 +1,4 @@
+from roadmap.domain.entities.adaptation import RoadmapAdaptation
 from roadmap.domain.entities.evidence_aggregation import (
     MarketObservation,
     RoadmapQualityScore,
@@ -5,6 +6,7 @@ from roadmap.domain.entities.evidence_aggregation import (
     SkillDecisionFactors,
     SkillEvidenceSummary,
 )
+from roadmap.domain.entities.feedback import LearningFeedback
 from roadmap.domain.entities.goal import Competency, Goal
 from roadmap.domain.entities.knowledge import (
     DocumentStatus,
@@ -33,6 +35,32 @@ from roadmap.domain.entities.user_profile import UserProfile
 
 __all__ = [
     "BudgetAllocation",
+    "Competency",
+    "DocumentStatus",
+    "EmbeddingRecord",
+    "Evidence",
+    "EvidenceContext",
+    "EvidenceContextBlock",
+    "Goal",
+    "KnowledgeChunk",
+    "KnowledgeDocument",
+    "LLMProviderState",
+    "LLMQuotaStatus",
+    "LLMReservation",
+    "LLMUsageRecord",
+    "LearningFeedback",
+    "LearningResource",
+    "MarketObservation",
+    "Milestone",
+    "ProgressRecord",
+    "Project",
+    "Recommendation",
+    "ResearchRun",
+    "RetrievalFilter",
+    "RetrievalQuery",
+    "RetrievalResult",
+    "Roadmap",
+    "RoadmapAdaptation",
     "Competency",
     "DocumentStatus",
     "EmbeddingRecord",

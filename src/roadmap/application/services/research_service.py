@@ -36,6 +36,7 @@ from roadmap.application.ports.llm_provider import (
     LLMProvider,
     LLMRateLimitError,
 )
+from roadmap.application.ports.repositories import EvidenceRepository, ResearchRunRepository, SourceRepository
 from roadmap.application.ports.search_provider import SearchProvider, SearchResult
 from roadmap.application.services.llm_budget_manager import LLMBudgetManager
 from roadmap.config.settings import settings
@@ -48,11 +49,6 @@ from roadmap.domain.value_objects.enums import FailureCategory, LLMWorkflow
 from roadmap.infrastructure.llm.rate_limiter import RateLimiter
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
-from roadmap.storage.repositories.research_repository import (
-    SqliteEvidenceRepository,
-    SqliteResearchRunRepository,
-    SqliteSourceRepository,
-)
 
 logger = get_logger(__name__)
 
@@ -66,9 +62,9 @@ class ResearchService:
         search_provider: SearchProvider,
         web_fetcher: WebFetcher,
         cache: Cache,
-        source_repo: SqliteSourceRepository,
-        evidence_repo: SqliteEvidenceRepository,
-        run_repo: SqliteResearchRunRepository,
+        source_repo: SourceRepository,
+        evidence_repo: EvidenceRepository,
+        run_repo: ResearchRunRepository,
         concurrency: int = 5,
         rate_limiter: RateLimiter | None = None,
         budget_manager: LLMBudgetManager | None = None,

@@ -40,6 +40,32 @@ class Settings(BaseSettings):
         default="",  # computed below if empty
         description="SQLAlchemy database URL",
     )
+    db_pool_size: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        validation_alias=AliasChoices("ROADMAP_DB_POOL_SIZE", "DB_POOL_SIZE"),
+        description="PostgreSQL connection pool size",
+    )
+    db_max_overflow: int = Field(
+        default=20,
+        ge=0,
+        le=100,
+        validation_alias=AliasChoices("ROADMAP_DB_MAX_OVERFLOW", "DB_MAX_OVERFLOW"),
+        description="PostgreSQL connection pool max overflow",
+    )
+    db_pool_timeout: float = Field(
+        default=30.0,
+        ge=1.0,
+        validation_alias=AliasChoices("ROADMAP_DB_POOL_TIMEOUT", "DB_POOL_TIMEOUT"),
+        description="PostgreSQL connection pool timeout seconds",
+    )
+    db_pool_recycle: int = Field(
+        default=3600,
+        ge=60,
+        validation_alias=AliasChoices("ROADMAP_DB_POOL_RECYCLE", "DB_POOL_RECYCLE"),
+        description="PostgreSQL connection pool recycle seconds",
+    )
 
     # ── LLM Provider ─────────────────────────────────────────────────────
     openai_api_key: str = Field(
@@ -230,16 +256,31 @@ class Settings(BaseSettings):
 
     @property
     def resolved_database_url(self) -> str:
-        """Return a fully-resolved database URL, expanding ~ in SQLite paths."""
+        """Return a fully-resolved database URL, expanding ~ in SQLite paths and normalizing Postgres drivers."""
         if self.database_url:
-            if self.database_url.startswith("sqlite:///~"):
-                return self.database_url.replace(
+            raw_url = self.database_url.strip()
+            if raw_url.startswith("sqlite:///~"):
+                return raw_url.replace(
                     "sqlite:///~", f"sqlite:///{Path.home()}", 1
                 )
-            return self.database_url
+            if raw_url.startswith("postgresql://"):
+                return raw_url.replace("postgresql://", "postgresql+psycopg://", 1)
+            if raw_url.startswith("postgres://"):
+                return raw_url.replace("postgres://", "postgresql+psycopg://", 1)
+            return raw_url
         # Default: SQLite in data_dir
         db_path = self.data_dir / "roadmap.db"
         return f"sqlite:///{db_path}"
+
+    @property
+    def is_sqlite(self) -> bool:
+        """Return True if the configured database dialect is SQLite."""
+        return self.resolved_database_url.startswith("sqlite")
+
+    @property
+    def is_postgres(self) -> bool:
+        """Return True if the configured database dialect is PostgreSQL."""
+        return "postgres" in self.resolved_database_url
 
     @property
     def cache_dir(self) -> Path:

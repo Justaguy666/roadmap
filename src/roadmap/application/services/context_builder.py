@@ -11,14 +11,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from roadmap.application.ports.repositories import EvidenceRepository, SourceRepository
 from roadmap.domain.entities.knowledge import (
     EvidenceContext,
     EvidenceContextBlock,
     RetrievalResult,
-)
-from roadmap.storage.repositories.research_repository import (
-    SqliteEvidenceRepository,
-    SqliteSourceRepository,
 )
 
 
@@ -27,8 +24,8 @@ class EvidenceContextBuilder:
 
     def __init__(
         self,
-        evidence_repo: SqliteEvidenceRepository,
-        source_repo: SqliteSourceRepository,
+        evidence_repo: EvidenceRepository,
+        source_repo: SourceRepository,
     ) -> None:
         self.evidence_repo = evidence_repo
         self.source_repo = source_repo

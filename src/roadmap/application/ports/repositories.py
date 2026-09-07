@@ -13,11 +13,17 @@ from __future__ import annotations
 from typing import Protocol
 
 from roadmap.domain.entities import (
+    EmbeddingRecord,
     Evidence,
     Goal,
+    KnowledgeChunk,
+    KnowledgeDocument,
+    LearningFeedback,
     ProgressRecord,
     Recommendation,
+    ResearchRun,
     Roadmap,
+    RoadmapAdaptation,
     Skill,
     SkillDependency,
     Source,
@@ -124,10 +130,19 @@ class SourceRepository(Protocol):
     def save(self, source: Source) -> None:
         ...
 
+    def get_by_id(self, source_id: str) -> Source | None:
+        ...
+
+    def get_by_url(self, url: str) -> Source | None:
+        ...
+
     def load_by_url(self, url: str) -> Source | None:
         ...
 
-    def load_all(self, profile_id: str) -> list[Source]:
+    def list_all(self, limit: int = 100) -> list[Source]:
+        ...
+
+    def load_all(self, profile_id: str | None = None) -> list[Source]:
         ...
 
 
@@ -137,10 +152,19 @@ class EvidenceRepository(Protocol):
     def save(self, evidence: Evidence) -> None:
         ...
 
+    def get_by_id(self, evidence_id: str) -> Evidence | None:
+        ...
+
+    def find_by_skill(self, skill_name: str) -> list[Evidence]:
+        ...
+
     def load_for_skill(self, skill_id: str) -> list[Evidence]:
         ...
 
     def load_for_recommendation(self, recommendation_id: str) -> list[Evidence]:
+        ...
+
+    def list_all(self, limit: int = 100) -> list[Evidence]:
         ...
 
 
@@ -153,5 +177,118 @@ class RecommendationRepository(Protocol):
     def load_for_skill(self, skill_id: str, roadmap_id: str) -> Recommendation | None:
         ...
 
+    def find_by_skill(self, skill_id: str) -> list[Recommendation]:
+        ...
+
+    def find_by_skill_name_or_id(self, skill_name_or_id: str, roadmap_id: str | None = None) -> Recommendation | None:
+        ...
+
+    def list_by_roadmap(self, roadmap_id: str) -> list[Recommendation]:
+        ...
+
     def load_for_roadmap(self, roadmap_id: str) -> list[Recommendation]:
         ...
+
+
+class ResearchRunRepository(Protocol):
+    """Persistence port for research runs."""
+
+    def save(self, run: ResearchRun) -> None:
+        ...
+
+    def get_latest(self, profile_id: str | None = None) -> ResearchRun | None:
+        ...
+
+    def get_by_id(self, run_id: str) -> ResearchRun | None:
+        ...
+
+
+class FeedbackRepository(Protocol):
+    """Persistence port for learning feedback."""
+
+    def save(self, feedback: LearningFeedback) -> None:
+        ...
+
+    def load_for_roadmap(self, roadmap_id: str) -> list[LearningFeedback]:
+        ...
+
+    def load_for_skill(self, roadmap_id: str, skill_id: str) -> list[LearningFeedback]:
+        ...
+
+
+class AdaptationRepository(Protocol):
+    """Persistence port for roadmap adaptations."""
+
+    def save(self, adaptation: RoadmapAdaptation) -> None:
+        ...
+
+    def load_for_profile(self, profile_id: str) -> list[RoadmapAdaptation]:
+        ...
+
+    def load_by_version(self, profile_id: str, new_version: int) -> RoadmapAdaptation | None:
+        ...
+
+    def get_latest_adaptation(self, profile_id: str) -> RoadmapAdaptation | None:
+        ...
+
+
+class KnowledgeRepository(Protocol):
+    """Persistence port for knowledge documents, chunks, and embeddings."""
+
+    def save_document(self, document: KnowledgeDocument) -> None:
+        ...
+
+    def get_document_by_id(self, document_id: str) -> KnowledgeDocument | None:
+        ...
+
+    def get_document_by_evidence_id(self, evidence_id: str) -> KnowledgeDocument | None:
+        ...
+
+    def list_all_documents(self, limit: int = 1000) -> list[KnowledgeDocument]:
+        ...
+
+    def delete_document(self, document_id: str) -> None:
+        ...
+
+    def save_chunks(self, chunks: list[KnowledgeChunk]) -> None:
+        ...
+
+    def get_chunk_by_id(self, chunk_id: str) -> KnowledgeChunk | None:
+        ...
+
+    def list_chunks_for_document(self, document_id: str) -> list[KnowledgeChunk]:
+        ...
+
+    def count_chunks(self) -> int:
+        ...
+
+    def count_documents(self) -> int:
+        ...
+
+    def save_embeddings(self, records: list[EmbeddingRecord]) -> None:
+        ...
+
+    def get_embedding_by_chunk_id(self, chunk_id: str) -> EmbeddingRecord | None:
+        ...
+
+    def list_all_embeddings(self, limit: int = 5000) -> list[EmbeddingRecord]:
+        ...
+
+    def count_embeddings(self) -> int:
+        ...
+
+
+__all__ = [
+    "AdaptationRepository",
+    "EvidenceRepository",
+    "FeedbackRepository",
+    "GoalRepository",
+    "KnowledgeRepository",
+    "ProfileRepository",
+    "ProgressRepository",
+    "RecommendationRepository",
+    "ResearchRunRepository",
+    "RoadmapRepository",
+    "SkillRepository",
+    "SourceRepository",
+]

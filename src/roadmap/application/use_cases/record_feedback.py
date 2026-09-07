@@ -6,17 +6,16 @@ validating scores and tying feedback to the active roadmap and target skill.
 
 from __future__ import annotations
 
+from roadmap.application.ports.repositories import FeedbackRepository, RoadmapRepository
 from roadmap.domain.entities.feedback import LearningFeedback
 from roadmap.shared.ids import new_id
-from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
-from roadmap.storage.repositories.roadmap_repository import SqliteRoadmapRepository
 
 
 class RecordFeedbackUseCase:
     def __init__(
         self,
-        roadmap_repo: SqliteRoadmapRepository,
-        feedback_repo: SqliteFeedbackRepository,
+        roadmap_repo: RoadmapRepository,
+        feedback_repo: FeedbackRepository,
     ) -> None:
         self.roadmap_repo = roadmap_repo
         self.feedback_repo = feedback_repo

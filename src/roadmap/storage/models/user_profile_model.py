@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from roadmap.storage.models.base import Base
@@ -32,8 +32,8 @@ class UserProfileModel(Base):
     budget: Mapped[str] = mapped_column(String(20), nullable=False, default="any")
     constraints_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 
-    study_hours_per_day: Mapped[float] = mapped_column(nullable=False, default=2.0)
-    deadline_months: Mapped[int] = mapped_column(nullable=False, default=12)
+    study_hours_per_day: Mapped[float] = mapped_column(Float, nullable=False, default=2.0)
+    deadline_months: Mapped[int] = mapped_column(Integer, nullable=False, default=12)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC)

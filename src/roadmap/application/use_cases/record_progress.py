@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from roadmap.application.ports.repositories import FeedbackRepository, ProgressRepository, RoadmapRepository
 from roadmap.domain.entities.adaptation import DeviationReport
 from roadmap.domain.entities.progress_record import ProgressRecord, ProgressStatus
 from roadmap.domain.entities.skill import Skill
@@ -17,9 +18,6 @@ from roadmap.domain.services.deviation_detector import DeviationDetector
 from roadmap.domain.services.progress_tracker import ProgressTracker
 from roadmap.domain.value_objects import SkillStatus
 from roadmap.shared.ids import new_id
-from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
-from roadmap.storage.repositories.progress_repository import SqliteProgressRepository
-from roadmap.storage.repositories.roadmap_repository import SqliteRoadmapRepository
 
 
 @dataclass
@@ -36,9 +34,9 @@ class ProgressUpdateResult:
 class UpdateProgressUseCase:
     def __init__(
         self,
-        roadmap_repo: SqliteRoadmapRepository,
-        progress_repo: SqliteProgressRepository,
-        feedback_repo: SqliteFeedbackRepository | None = None,
+        roadmap_repo: RoadmapRepository,
+        progress_repo: ProgressRepository,
+        feedback_repo: FeedbackRepository | None = None,
         tracker: ProgressTracker | None = None,
         deviation_detector: DeviationDetector | None = None,
     ) -> None:

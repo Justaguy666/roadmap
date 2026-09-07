@@ -35,7 +35,7 @@ class SourceModel(Base):
     __tablename__ = "sources"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="other")
     publisher: Mapped[str] = mapped_column(String(200), nullable=False, default="")

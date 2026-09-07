@@ -34,12 +34,14 @@ config.set_main_option("sqlalchemy.url", settings.resolved_database_url)
 def run_migrations_offline() -> None:
     """Run migrations in offline mode (no DB connection)."""
     url = config.get_main_option("sqlalchemy.url")
+    # render_as_batch is a SQLite-only workaround for ALTER TABLE limitations
+    is_sqlite = (url or "").startswith("sqlite")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,  # required for SQLite ALTER TABLE support
+        render_as_batch=is_sqlite,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -53,10 +55,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        # render_as_batch is a SQLite-only workaround for ALTER TABLE limitations
+        is_sqlite = connection.dialect.name == "sqlite"
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,  # required for SQLite ALTER TABLE support
+            render_as_batch=is_sqlite,
         )
         with context.begin_transaction():
             context.run_migrations()

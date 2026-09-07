@@ -11,13 +11,10 @@ enforcing deterministic tie-breaking, metadata filtering, and canonical evidence
 from __future__ import annotations
 
 from roadmap.application.ports.embedding_provider import EmbeddingProvider
+from roadmap.application.ports.repositories import EvidenceRepository, SourceRepository
 from roadmap.application.ports.vector_store import VectorStore
 from roadmap.domain.entities.knowledge import RetrievalFilter, RetrievalQuery, RetrievalResult
 from roadmap.shared.logger import get_logger
-from roadmap.storage.repositories.research_repository import (
-    SqliteEvidenceRepository,
-    SqliteSourceRepository,
-)
 
 logger = get_logger(__name__)
 
@@ -29,8 +26,8 @@ class SemanticRetrievalService:
         self,
         embedding_provider: EmbeddingProvider,
         vector_store: VectorStore,
-        evidence_repo: SqliteEvidenceRepository,
-        source_repo: SqliteSourceRepository,
+        evidence_repo: EvidenceRepository,
+        source_repo: SourceRepository,
     ) -> None:
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store

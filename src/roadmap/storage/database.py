@@ -27,6 +27,15 @@ _engine: Engine | None = None
 _SessionFactory: sessionmaker[Session] | None = None
 
 
+def reset_engine() -> None:
+    """Dispose current engine and reset singleton instances (used in testing)."""
+    global _engine, _SessionFactory
+    if _engine is not None:
+        _engine.dispose()
+        _engine = None
+    _SessionFactory = None
+
+
 def get_engine() -> Engine:
     """Return the singleton SQLAlchemy engine, creating it if needed."""
     global _engine
@@ -34,18 +43,14 @@ def get_engine() -> Engine:
         db_url = settings.resolved_database_url
         logger.info("Creating database engine", url=_sanitize_url(db_url))
 
-        connect_args = {}
-        if db_url.startswith("sqlite"):
-            connect_args["check_same_thread"] = False
+        if settings.is_sqlite:
+            connect_args = {"check_same_thread": False}
+            _engine = create_engine(
+                db_url,
+                connect_args=connect_args,
+                echo=(settings.log_level == "DEBUG"),
+            )
 
-        _engine = create_engine(
-            db_url,
-            connect_args=connect_args,
-            echo=(settings.log_level == "DEBUG"),
-        )
-
-        # SQLite-specific setup
-        if db_url.startswith("sqlite"):
             @event.listens_for(_engine, "connect")
             def set_sqlite_pragmas(dbapi_connection: Any, connection_record: Any) -> None:  # noqa: ARG001
                 cursor = dbapi_connection.cursor()
@@ -53,6 +58,18 @@ def get_engine() -> Engine:
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.execute("PRAGMA synchronous=NORMAL")
                 cursor.close()
+
+        else:
+            # PostgreSQL engine configuration with connection pooling and health checks
+            _engine = create_engine(
+                db_url,
+                pool_size=settings.db_pool_size,
+                max_overflow=settings.db_max_overflow,
+                pool_timeout=settings.db_pool_timeout,
+                pool_recycle=settings.db_pool_recycle,
+                pool_pre_ping=True,
+                echo=(settings.log_level == "DEBUG"),
+            )
 
     return _engine
 

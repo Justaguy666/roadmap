@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from roadmap.application.ports.embedding_provider import EmbeddingProvider
+from roadmap.application.ports.repositories import EvidenceRepository, KnowledgeRepository, SourceRepository
 from roadmap.domain.entities.knowledge import (
     DocumentStatus,
     EmbeddingRecord,
@@ -25,11 +26,6 @@ from roadmap.domain.entities.source import Evidence, Source
 from roadmap.domain.services.knowledge_chunker import KnowledgeChunker
 from roadmap.shared.ids import new_id
 from roadmap.shared.logger import get_logger
-from roadmap.storage.repositories.knowledge_repository import SqliteKnowledgeRepository
-from roadmap.storage.repositories.research_repository import (
-    SqliteEvidenceRepository,
-    SqliteSourceRepository,
-)
 
 logger = get_logger(__name__)
 
@@ -39,9 +35,9 @@ class KnowledgeIndexingService:
 
     def __init__(
         self,
-        evidence_repo: SqliteEvidenceRepository,
-        source_repo: SqliteSourceRepository,
-        knowledge_repo: SqliteKnowledgeRepository,
+        evidence_repo: EvidenceRepository,
+        source_repo: SourceRepository,
+        knowledge_repo: KnowledgeRepository,
         embedding_provider: EmbeddingProvider,
         chunker: KnowledgeChunker | None = None,
     ) -> None:
