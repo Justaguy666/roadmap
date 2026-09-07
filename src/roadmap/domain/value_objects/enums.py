@@ -182,4 +182,5 @@ class LLMWorkflow(str, Enum):
     RESEARCH = "research"
     GENERATION = "generation"
     EVALUATION = "evaluation"
+    ADAPTATION = "adaptation"
     OTHER = "other"

@@ -108,6 +108,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ROADMAP_EVALUATION_LLM_BUDGET", "EVALUATION_LLM_BUDGET"),
         description="Daily request budget for evaluation/revision workflow",
     )
+    llm_adaptation_budget: int = Field(
+        default=5,
+        ge=1,
+        validation_alias=AliasChoices("ROADMAP_ADAPTATION_LLM_BUDGET", "ROADMAP_LLM_ADAPTATION_BUDGET", "ADAPTATION_LLM_BUDGET"),
+        description="Daily request budget for adaptation/replanning workflow",
+    )
     llm_budget_window_hours: int = Field(
         default=24,
         ge=1,

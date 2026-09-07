@@ -52,6 +52,7 @@ class LLMBudgetManager:
             LLMWorkflow.RESEARCH: settings.research_llm_budget,
             LLMWorkflow.GENERATION: settings.generation_llm_budget,
             LLMWorkflow.EVALUATION: settings.evaluation_llm_budget,
+            LLMWorkflow.ADAPTATION: settings.llm_adaptation_budget,
             LLMWorkflow.OTHER: max(1, self.daily_budget),
         }
         if workflow_budgets:
@@ -355,7 +356,7 @@ class LLMBudgetManager:
             )
 
             wf_allocs: dict[LLMWorkflow, BudgetAllocation] = {}
-            for wf in [LLMWorkflow.RESEARCH, LLMWorkflow.GENERATION, LLMWorkflow.EVALUATION]:
+            for wf in [LLMWorkflow.RESEARCH, LLMWorkflow.GENERATION, LLMWorkflow.EVALUATION, LLMWorkflow.ADAPTATION]:
                 limit = self.workflow_budgets.get(wf, self.daily_budget)
                 used = self.repository.count_requests_since(window_start, workflow=wf)
                 reserved = sum(r.reserved_requests for r in self._active_reservations.values() if r.workflow == wf)

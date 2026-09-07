@@ -27,6 +27,18 @@ class SqliteRoadmapRepository:
     def save(self, roadmap: Roadmap) -> None:
         existing = self._session.get(RoadmapModel, roadmap.id)
         if existing:
+            # Delete child objects to avoid constraint violations in databases without CASCADE support
+            phase_ids = [
+                p.id
+                for p in self._session.query(RoadmapPhaseModel.id)
+                .filter(RoadmapPhaseModel.roadmap_id == roadmap.id)
+                .all()
+            ]
+            if phase_ids:
+                self._session.query(MilestoneModel).filter(MilestoneModel.phase_id.in_(phase_ids)).delete(synchronize_session=False)
+                self._session.query(LearningResourceModel).filter(LearningResourceModel.phase_id.in_(phase_ids)).delete(synchronize_session=False)
+                self._session.query(ProjectModel).filter(ProjectModel.phase_id.in_(phase_ids)).delete(synchronize_session=False)
+                self._session.query(RoadmapPhaseModel).filter(RoadmapPhaseModel.roadmap_id == roadmap.id).delete(synchronize_session=False)
             self._session.delete(existing)
             self._session.flush()
 

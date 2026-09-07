@@ -389,6 +389,46 @@ class FakeLLMProvider(LLMProvider):
                 recommendations=["Focus on portfolio deliverables to demonstrate proficiency."],
             )
 
+        from roadmap.agents.schemas.adaptation import (
+            AdaptationProposal,
+            PhaseAdjustmentDraft,
+            SkillAdjustmentDraft,
+            SupportSkillDraft,
+        )
+
+        if response_model is AdaptationProposal or issubclass(response_model, AdaptationProposal):
+            return AdaptationProposal(  # type: ignore[return-value]
+                adaptation_strategy="Recalibrate pacing and allocate remedial math practice",
+                rationale="Progress velocity dropped below 0.75x; user encountered blockers in core algorithms.",
+                affected_phase_numbers=[1],
+                phase_adjustments=[
+                    PhaseAdjustmentDraft(
+                        phase_number=1,
+                        new_estimated_weeks=8.0,
+                        rationale="Extend foundational phase by 2 weeks to absorb memory model nuances.",
+                    )
+                ],
+                skill_adjustments=[
+                    SkillAdjustmentDraft(
+                        skill_name="C++",
+                        action="REVISE_HOURS",
+                        new_estimated_hours=75.0,
+                        rationale="Increase hour budget to allow thorough pointer debugging.",
+                    )
+                ],
+                support_skills=[
+                    SupportSkillDraft(
+                        name="Pointer Arithmetic & Memory Layout",
+                        category="programming",
+                        target_phase_number=1,
+                        estimated_hours=15.0,
+                        rationale="Bridge gap before advancing to complex dynamic data structures.",
+                    )
+                ],
+                estimated_total_weeks_delta=2.0,
+                confidence=0.92,
+            )
+
         # Generic fallback if custom model passed
         try:
             return response_model()  # type: ignore[call-arg]

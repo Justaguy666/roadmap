@@ -19,6 +19,7 @@ from roadmap.application.ports.llm_provider import LLMProvider
 from roadmap.application.ports.search_provider import SearchProvider
 from roadmap.application.services.llm_budget_manager import LLMBudgetManager
 from roadmap.application.services.research_service import ResearchService
+from roadmap.application.use_cases.adapt_roadmap import AdaptRoadmapUseCase
 from roadmap.application.use_cases.analyze_goal import AnalyzeGoalUseCase
 from roadmap.application.use_cases.generate_roadmap import GenerateRoadmapUseCase
 from roadmap.application.use_cases.profile_use_cases import (
@@ -31,6 +32,8 @@ from roadmap.config.settings import settings
 from roadmap.infrastructure.llm.fake_provider import FakeLLMProvider
 from roadmap.infrastructure.llm.openai_provider import OpenAIProvider
 from roadmap.storage.database import create_all_tables, get_session
+from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
+from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
 from roadmap.storage.repositories.llm_usage_repository import SqliteLLMUsageRepository
 from roadmap.storage.repositories.profile_repository import SqliteProfileRepository
 from roadmap.storage.repositories.progress_repository import SqliteProgressRepository
@@ -274,3 +277,69 @@ def get_budget_context() -> Generator[LLMBudgetManager, None, None]:
     with get_session() as session:
         usage_repo = SqliteLLMUsageRepository(session)
         yield LLMBudgetManager(repository=usage_repo)
+
+
+@contextmanager
+def get_progress_context() -> Generator[
+    tuple[
+        SqliteProfileRepository,
+        SqliteRoadmapRepository,
+        SqliteProgressRepository,
+        SqliteFeedbackRepository,
+        SqliteAdaptationRepository,
+    ],
+    None,
+    None,
+]:
+    """Yield repositories for progress and feedback operations."""
+    from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
+    from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
+
+    with get_session() as session:
+        yield (
+            SqliteProfileRepository(session),
+            SqliteRoadmapRepository(session),
+            SqliteProgressRepository(session),
+            SqliteFeedbackRepository(session),
+            SqliteAdaptationRepository(session),
+        )
+
+
+@contextmanager
+def get_adaptation_context(
+    llm_provider: LLMProvider | None = None,
+) -> Generator[
+    tuple[
+        SqliteProfileRepository,
+        SqliteRoadmapRepository,
+        AdaptRoadmapUseCase,
+    ],
+    None,
+    None,
+]:
+    """Yield AdaptRoadmapUseCase and repositories bound to a database session."""
+    from roadmap.agents.adaptation_agent import AdaptationAgent
+    from roadmap.application.use_cases.adapt_roadmap import AdaptRoadmapUseCase
+    from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
+    from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
+
+    provider = llm_provider or get_llm_provider()
+    with get_session() as session:
+        profile_repo = SqliteProfileRepository(session)
+        roadmap_repo = SqliteRoadmapRepository(session)
+        progress_repo = SqliteProgressRepository(session)
+        feedback_repo = SqliteFeedbackRepository(session)
+        adaptation_repo = SqliteAdaptationRepository(session)
+        usage_repo = SqliteLLMUsageRepository(session)
+        budget_mgr = LLMBudgetManager(repository=usage_repo)
+
+        agent = AdaptationAgent(llm_provider=provider, budget_manager=budget_mgr)
+        adapt_uc = AdaptRoadmapUseCase(
+            roadmap_repo=roadmap_repo,
+            progress_repo=progress_repo,
+            feedback_repo=feedback_repo,
+            adaptation_repo=adaptation_repo,
+            adaptation_agent=agent,
+        )
+
+        yield (profile_repo, roadmap_repo, adapt_uc)

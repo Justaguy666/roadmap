@@ -1,6 +1,6 @@
-"""Storage models package — imports all ORM models to register them with Base.metadata."""
-
+from roadmap.storage.models.adaptation_model import RoadmapAdaptationModel
 from roadmap.storage.models.base import Base
+from roadmap.storage.models.feedback_model import LearningFeedbackModel
 from roadmap.storage.models.llm_usage_model import (
     LLMProviderStateModel,
     LLMUsageRecordModel,
@@ -24,6 +24,7 @@ from roadmap.storage.models.user_profile_model import UserProfileModel
 __all__ = [
     "Base",
     "EvidenceModel",
+    "LearningFeedbackModel",
     "LLMProviderStateModel",
     "LLMUsageRecordModel",
     "LearningResourceModel",
@@ -32,6 +33,7 @@ __all__ = [
     "ProjectModel",
     "RecommendationModel",
     "ResearchRunModel",
+    "RoadmapAdaptationModel",
     "RoadmapModel",
     "RoadmapPhaseModel",
     "SkillDependencyModel",
