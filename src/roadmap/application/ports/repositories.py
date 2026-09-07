@@ -92,6 +92,9 @@ class RoadmapRepository(Protocol):
     def load_latest(self, profile_id: str) -> Roadmap | None:
         ...
 
+    def load_by_version(self, profile_id: str, version: int) -> Roadmap | None:
+        ...
+
     def load_all(self, profile_id: str) -> list[Roadmap]:
         ...
 

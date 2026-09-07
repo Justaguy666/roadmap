@@ -25,31 +25,53 @@ During MVP-4 end-to-end runs with real LLMs (Gemini 2.5/3.5/3.7), the generation
   - Exact match -> case-insensitive match -> normalized alphanumeric keyword matching (preserving `C++` tokens and stripping parenthesized qualifiers like `(Git)`) -> attached evidence ID set intersection.
 - In `GenerateRoadmapUseCase._to_domain_roadmap`: Validated all proposed `evidence_ids` against persisted DB `EvidenceModel` records. Invalid or synthetic LLM IDs are dropped and replaced with the matching canonical evidence summary's `supporting_evidence_ids`.
 
-### 2. Disentangling Evaluator Critique vs Deterministic Quality Score
-- **LLM Evaluator Score (0-100)**: Qualitative pedagogical assessment returned by `RoadmapEvaluator` based on role fit, difficulty progression, and pacing.
-- **Deterministic Quality Score (0-100)**: Quantitative mathematical score computed across 7 weighted dimensions by `QualityScorer` (Goal Alignment 20%, Market Alignment 20%, Evidence Strength 15%, Dependency Correctness 15%, Time Feasibility 15%, Portfolio Value 10%, Scope Efficiency 5%).
-- When skill name normalization was missing, grounded skill lookup failed (`market_alignment = 0.0`, `evidence_strength = 0.0`), driving the deterministic score down to 60.2. With normalized evidence matching, grounded skills are correctly identified (90.8/100).
-- CLI commands (`generate`, `show`) now explicitly label both metrics separately:
-  - `Deterministic Quality: 90.8/100`
-  - `Evaluator Score: 82.0/100 (REVISE)`
+### 2. Disentangling the Three Distinct Scoring Models
+We explicitly define and document three separate, non-interchangeable scoring models:
+
+1. **Deterministic Skill Decision Factor Model (0.0 to 1.0 composite)**:
+   - Evaluates whether an individual skill should be included, postponed, or prioritized in the curriculum.
+   - Weights:
+     - Market Relevance: 25% (0.25)
+     - Goal Relevance: 30% (0.30)
+     - Skill Gap: 20% (0.20)
+     - Prerequisite Importance: 15% (0.15)
+     - Portfolio Value: 10% (0.10)
+     - Time Cost Factor: Feasibility constraint
+   - Inclusion thresholds: composite ≥ 0.45 (`include`), composite ≥ 0.70 (`high priority`), composite ≥ 0.85 (`critical priority`).
+
+2. **LLM Evaluator Score (0 to 100)**:
+   - Qualitative pedagogical review returned by `RoadmapEvaluator` analyzing curriculum pacing, skill sequencing, and role alignment.
+   - Acts as an advisory review gate returning `PASS` or `REVISE` verdicts for the revision loop.
+
+3. **Deterministic Multi-Dimensional Roadmap Quality Score (0 to 100)**:
+   - Quantitative mathematical score calculated deterministically by `QualityScorer` across 7 global dimensions:
+     - Goal Alignment: 20% (0.20)
+     - Market Alignment: 20% (0.20)
+     - Evidence Strength: 15% (0.15)
+     - Dependency Correctness: 15% (0.15)
+     - Time Feasibility: 15% (0.15)
+     - Portfolio Value: 10% (0.10)
+     - Scope Efficiency: 5% (0.05)
+   - When skill name normalization was missing, grounded skill lookup failed (`market_alignment = 0.0`, `evidence_strength = 0.0`), driving the deterministic score down to 60.2. With normalized evidence matching, grounded skills are correctly identified (90.8/100).
+   - CLI commands (`generate`, `show`) explicitly label these metrics separately to prevent confusion.
 
 ### 3. Explicit Degraded State & Validation Status Persistence
-- Added `validation_status: str` (values: `COMPLETED`, `COMPLETED_WITH_WARNINGSb), `evaluator_score: float | None`, and `evaluator_verdict: str | None` to the `Roadmap` domain entity and `roadmaps` database table.
-- When the revision loop terminates due to budget or cycle exhaustion while the evaluator returned REVISE or deterministic validation warnings remain, `validation_status` is set to `COMPLETED_WITH_WARNINGS`.
+- Added `validation_status: str` (values: `COMPLETED`, `COMPLETED_WITH_WARNINGS`), `evaluator_score: float | None`, and `evaluator_verdict: str | None` to the `Roadmap` domain entity and `roadmaps` database table.
+- When the revision loop terminates due to budget or cycle exhaustion while the evaluator returned `REVISE` or deterministic validation warnings remain, `validation_status` is set to `COMPLETED_WITH_WARNINGS`.
 - The CLI displays prominent warning banners:
-  `⚠ Validation completed with warnings / degraded state: revision budget or cycle limit reached (Evaluator critique score: 82/100, verdict: REVISE).
+  `⚠ Validation completed with warnings / degraded state: revision budget or cycle limit reached (Evaluator critique score: 82/100, verdict: REVISE).`
 
 ### 4. Transparent Decision Factor Breakdown in CLI
 - Formatted `roadmap why <skill>` with a structured table displaying:
   - Factor dimensions: Market Relevance (25%), Goal Relevance (30%), Skill Gap (20%), Prerequisite Importance (15%), Portfolio Value (10%), Time Cost Factor (feasibility).
   - Raw score, weight percentage, weighted contribution, and descriptive interpretation.
-  - Final composite score and deterministic threshold explanation (>= 0.45 include, >= 0.70 high priority).
+  - Final composite score and deterministic threshold explanation (≥ 0.45 include, ≥ 0.70 high priority).
   - Supporting evidence citations resolving to real source domains and extracted claims.
 
-3## 5. Skill Graph DAG Guidance
+### 5. Skill Graph DAG Guidance
 - Refined generation system prompts to instruct the LLM to specify direct technical prerequisites only, preventing artificial single-file linear chains and permitting concurrent foundational skill acquisition.
 
-3# Consequences
+## Consequences
 - **Positive**: Complete traceability between market research evidence, skill recommendations, and CLI explanations.
 - **Positive**: No more mysterious 0% evidence grounding or false quality penalties due to string mismatches.
 - **Positive**: Transparent user feedback when roadmap generation finishes under constrained revision budgets.

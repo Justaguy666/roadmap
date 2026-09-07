@@ -27,6 +27,10 @@ def show(
         bool,
         typer.Option("--all", "-a", help="Show full details for all roadmap phases"),
     ] = False,
+    version: Annotated[
+        int | None,
+        typer.Option("--version", "-v", help="Show a specific roadmap version (e.g. 4)"),
+    ] = None,
 ) -> None:
     """Display the current roadmap."""
     initialize_database()
@@ -37,7 +41,14 @@ def show(
             print_error("No profile found. Run `roadmap init` first.")
             raise typer.Exit(1)
 
-        roadmap = roadmap_repo.load_latest(profile.id)
+        if version is not None:
+            roadmap = roadmap_repo.load_by_version(profile.id, version)
+            if roadmap is None:
+                print_error(f"Roadmap version {version} not found.")
+                raise typer.Exit(1)
+        else:
+            roadmap = roadmap_repo.load_latest(profile.id)
+
         if roadmap is None:
             print_info(
                 "No roadmap yet. Run [bold]roadmap generate[/bold] to create one."

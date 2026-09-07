@@ -142,6 +142,16 @@ class SqliteRoadmapRepository:
             return None
         return self._to_entity(rm)
 
+    def load_by_version(self, profile_id: str, version: int) -> Roadmap | None:
+        rm = (
+            self._session.query(RoadmapModel)
+            .filter(RoadmapModel.profile_id == profile_id, RoadmapModel.version == version)
+            .first()
+        )
+        if rm is None:
+            return None
+        return self._to_entity(rm)
+
     def load_all(self, profile_id: str) -> list[Roadmap]:
         models = (
             self._session.query(RoadmapModel)

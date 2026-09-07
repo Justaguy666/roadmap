@@ -269,22 +269,50 @@ class SqliteRecommendationRepository:
 
     def find_by_skill_name_or_id(self, skill_name_or_id: str, roadmap_id: str | None = None) -> Recommendation | None:
         clean_target = skill_name_or_id.strip()
-        # 1. Join SkillModel for accurate name and ID resolution
-        q = (
+        # 1. Exact ID or exact name match (highest precedence)
+        q_exact = (
             self._session.query(RecommendationModel)
             .outerjoin(SkillModel, SkillModel.id == RecommendationModel.skill_id)
             .filter(
                 or_(
                     RecommendationModel.skill_id == clean_target,
                     func.lower(SkillModel.name) == clean_target.lower(),
-                    SkillModel.name.ilike(f"%{clean_target}%"),
-                    RecommendationModel.reasoning.ilike(f"%{clean_target}%"),
                 )
             )
         )
         if roadmap_id:
-            q = q.filter(RecommendationModel.roadmap_id == roadmap_id)
-        m = q.order_by(RecommendationModel.created_at.desc()).first()
+            q_exact = q_exact.filter(RecommendationModel.roadmap_id == roadmap_id)
+        m = q_exact.order_by(RecommendationModel.created_at.desc()).first()
+        if m:
+            return self._to_entity(m)
+
+        # 2. Skill name starts with or contains clean_target
+        # Prefer exact word / prefix matches before arbitrary substring
+        q_sub = (
+            self._session.query(RecommendationModel)
+            .outerjoin(SkillModel, SkillModel.id == RecommendationModel.skill_id)
+            .filter(
+                or_(
+                    SkillModel.name.ilike(f"{clean_target}%"),
+                    SkillModel.name.ilike(f"%{clean_target}%"),
+                )
+            )
+        )
+        if roadmap_id:
+            q_sub = q_sub.filter(RecommendationModel.roadmap_id == roadmap_id)
+        # Order by length of skill name ascending (so 'C++ Programming' beats 'Unreal Engine (C++ & Blueprints)' for 'C++')
+        m = q_sub.order_by(func.length(SkillModel.name).asc(), RecommendationModel.created_at.desc()).first()
+        if m:
+            return self._to_entity(m)
+
+        # 3. Fallback to reasoning
+        q_reason = (
+            self._session.query(RecommendationModel)
+            .filter(RecommendationModel.reasoning.ilike(f"%{clean_target}%"))
+        )
+        if roadmap_id:
+            q_reason = q_reason.filter(RecommendationModel.roadmap_id == roadmap_id)
+        m = q_reason.order_by(RecommendationModel.created_at.desc()).first()
         return self._to_entity(m) if m else None
 
     def list_by_roadmap(self, roadmap_id: str) -> list[Recommendation]:

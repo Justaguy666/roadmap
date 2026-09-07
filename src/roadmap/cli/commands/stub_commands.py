@@ -5,8 +5,7 @@ These commands exist in MVP-1 so the CLI is complete and user-friendly,
 but they show a clear "not yet available" message rather than crashing.
 """
 
-from __future__ import annotations
-
+import json
 from typing import Any
 
 import typer
@@ -199,10 +198,18 @@ def why(
             )
             console.print(factor_table)
 
-        if rec.evidence_ids:
+        # Determine evidence IDs from recommendation or parent skill
+        evidence_ids = list(rec.evidence_ids)
+        if not evidence_ids and rec.skill_id:
+            from roadmap.storage.models.skill_model import SkillModel
+            sk_model = session.get(SkillModel, rec.skill_id)
+            if sk_model and hasattr(sk_model, "evidence_ids_json") and sk_model.evidence_ids_json:
+                evidence_ids = json.loads(sk_model.evidence_ids_json)
+
+        if evidence_ids:
             console.print()
-            console.print(f"  [bold]Supporting Evidence Citations ({len(rec.evidence_ids)}):[/bold]")
-            for eid in rec.evidence_ids[:5]:
+            console.print(f"  [bold]Supporting Evidence Citations ({len(evidence_ids)}):[/bold]")
+            for eid in evidence_ids[:5]:
                 ev = ev_repo.get_by_id(eid)
                 if ev:
                     src = src_repo.get_by_id(ev.source_id)
