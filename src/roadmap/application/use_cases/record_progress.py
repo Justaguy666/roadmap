@@ -187,3 +187,14 @@ class UpdateProgressUseCase:
             unlocked_skills=unlocked,
             deviation_report=deviation_report,
         )
+
+
+class ListProgressUseCase:
+    """List all progress records for a profile."""
+
+    def __init__(self, progress_repo: ProgressRepository) -> None:
+        self._progress_repo = progress_repo
+
+    def execute(self, profile_id: str) -> list[ProgressRecord]:
+        return self._progress_repo.load_all(profile_id)
+

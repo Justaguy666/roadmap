@@ -249,6 +249,34 @@ class Settings(BaseSettings):
         description="Minimum cosine similarity score required for retrieved chunks",
     )
 
+    # ── API (MVP-7.2) ─────────────────────────────────────────────────────
+    api_host: str = Field(
+        default="127.0.0.1",
+        validation_alias=AliasChoices("ROADMAP_API_HOST", "API_HOST"),
+        description="API server bind host",
+    )
+    api_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        validation_alias=AliasChoices("ROADMAP_API_PORT", "API_PORT"),
+        description="API server bind port",
+    )
+    api_prefix: str = Field(
+        default="/api/v1",
+        validation_alias=AliasChoices("ROADMAP_API_PREFIX", "API_PREFIX"),
+        description="URL prefix for all versioned API routes",
+    )
+    api_cors_origins: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ROADMAP_API_CORS_ORIGINS", "API_CORS_ORIGINS"),
+        description=(
+            "Explicit list of allowed CORS origins. "
+            "Empty list disables CORS middleware entirely. "
+            "Do NOT use ['*'] with allow_credentials=True."
+        ),
+    )
+
     @field_validator("data_dir", mode="before")
     @classmethod
     def expand_data_dir(cls, v: object) -> Path:
