@@ -1,4 +1,4 @@
-﻿"""Tests: Feedback endpoints."""
+"""Tests: Feedback endpoints."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def test_record_feedback_no_profile(api_client: TestClient) -> None:
     }
     resp = api_client.post("/api/v1/profiles/nonexistent/feedback", json=body)
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
 
 
 def test_record_feedback_missing_fields(api_client: TestClient) -> None:

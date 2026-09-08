@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from roadmap.storage.models.base import Base
@@ -15,6 +15,7 @@ class UserProfileModel(Base):
     __tablename__ = "user_profiles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     target_goal: Mapped[str] = mapped_column(Text, nullable=False)
     target_role: Mapped[str] = mapped_column(String(200), nullable=False, default="")

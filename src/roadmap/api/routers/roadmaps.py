@@ -5,25 +5,26 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from roadmap.api.dependencies import (
+    get_authorized_profile,
     get_get_latest_roadmap_use_case,
-    get_get_profile_use_case,
     get_get_roadmap_by_version_use_case,
     get_list_roadmaps_use_case,
 )
+from roadmap.api.schemas.common import ErrorCode
 from roadmap.api.schemas.roadmaps import (
     MilestoneResponse,
     PhaseResponse,
     RoadmapResponse,
     RoadmapSummaryResponse,
 )
-from roadmap.application.use_cases.profile_use_cases import GetProfileUseCase
 from roadmap.application.use_cases.roadmap_use_cases import (
     GetLatestRoadmapUseCase,
     GetRoadmapByVersionUseCase,
     ListRoadmapsUseCase,
 )
 from roadmap.domain.entities.roadmap import Roadmap
-from roadmap.domain.exceptions import ProfileNotFoundError, RoadmapNotFoundError
+from roadmap.domain.entities.user_profile import UserProfile
+from roadmap.domain.exceptions import RoadmapNotFoundError
 
 router = APIRouter(tags=["Roadmaps"])
 
@@ -82,35 +83,21 @@ def _roadmap_to_summary(r: Roadmap) -> RoadmapSummaryResponse:
     )
 
 
-def _resolve_profile(profile_id: str, profile_uc: GetProfileUseCase) -> None:
-    """Verify profile_id refers to the current stored profile."""
-    try:
-        profile = profile_uc.execute()
-    except ProfileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "PROFILE_NOT_FOUND", "message": "Profile not found"}},
-        ) from exc
-    if profile.id != profile_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "PROFILE_NOT_FOUND", "message": "Profile not found"}},
-        )
-
-
 @router.get(
     "/profiles/{profile_id}/roadmaps",
     response_model=list[RoadmapSummaryResponse],
     summary="List all roadmap versions for a profile",
     description="Returns summaries of all roadmap versions. Versions are immutable once created.",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Resource not found"},
+    },
 )
 def list_roadmaps(
-    profile_id: str,
-    profile_uc: GetProfileUseCase = Depends(get_get_profile_use_case),
+    profile: UserProfile = Depends(get_authorized_profile),
     use_case: ListRoadmapsUseCase = Depends(get_list_roadmaps_use_case),
 ) -> list[RoadmapSummaryResponse]:
-    _resolve_profile(profile_id, profile_uc)
-    roadmaps = use_case.execute(profile_id)
+    roadmaps = use_case.execute(profile.id)
     return [_roadmap_to_summary(r) for r in roadmaps]
 
 
@@ -118,20 +105,21 @@ def list_roadmaps(
     "/profiles/{profile_id}/roadmaps/latest",
     response_model=RoadmapResponse,
     summary="Retrieve the latest roadmap version",
-    responses={404: {"description": "No roadmap found"}},
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "No roadmap or profile found"},
+    },
 )
 def get_latest_roadmap(
-    profile_id: str,
-    profile_uc: GetProfileUseCase = Depends(get_get_profile_use_case),
+    profile: UserProfile = Depends(get_authorized_profile),
     use_case: GetLatestRoadmapUseCase = Depends(get_get_latest_roadmap_use_case),
 ) -> RoadmapResponse:
-    _resolve_profile(profile_id, profile_uc)
     try:
-        roadmap = use_case.execute(profile_id)
+        roadmap = use_case.execute(profile.id)
     except RoadmapNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "ROADMAP_NOT_FOUND", "message": "No roadmap found for this profile"}},
+            detail={"error": {"code": ErrorCode.ROADMAP_NOT_FOUND, "message": "No roadmap found for this profile"}},
         ) from exc
     return _roadmap_to_response(roadmap)
 
@@ -141,21 +129,23 @@ def get_latest_roadmap(
     response_model=RoadmapResponse,
     summary="Retrieve a specific roadmap version",
     description="Roadmap versions are immutable. Version numbers start at 1.",
-    responses={404: {"description": "Roadmap version not found"}},
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Roadmap version or profile not found"},
+    },
 )
 def get_roadmap_by_version(
-    profile_id: str,
     version: int,
-    profile_uc: GetProfileUseCase = Depends(get_get_profile_use_case),
+    profile: UserProfile = Depends(get_authorized_profile),
     use_case: GetRoadmapByVersionUseCase = Depends(get_get_roadmap_by_version_use_case),
 ) -> RoadmapResponse:
-    _resolve_profile(profile_id, profile_uc)
     try:
-        roadmap = use_case.execute(profile_id, version)
+        roadmap = use_case.execute(profile.id, version)
     except RoadmapNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "ROADMAP_NOT_FOUND", "message": f"Roadmap version {version} not found"}},
+            detail={"error": {"code": ErrorCode.ROADMAP_NOT_FOUND, "message": f"Roadmap version {version} not found"}},
         ) from exc
     return _roadmap_to_response(roadmap)
+
 

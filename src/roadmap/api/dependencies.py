@@ -1,5 +1,5 @@
 """
-FastAPI dependency providers for RoadmapAI API (MVP-7.2).
+FastAPI dependency providers for RoadmapAI API (MVP-7.3).
 
 All providers reuse the existing application-layer infrastructure:
   - get_session_factory() / get_engine() from storage.database
@@ -9,16 +9,18 @@ All providers reuse the existing application-layer infrastructure:
 Route handlers MUST depend on these functions via FastAPI Depends().
 Route handlers MUST NOT import Sqlite*Repository or SQLAlchemy models directly.
 
-Authentication: NOT YET IMPLEMENTED — deferred to MVP-7.3.
+Authentication: Multi-user JWT Bearer authentication (MVP-7.3).
 """
 
 from __future__ import annotations
 
 from collections.abc import Generator
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from roadmap.api.schemas.common import ErrorCode
 from roadmap.application.ports.embedding_provider import EmbeddingProvider
 from roadmap.application.ports.llm_provider import LLMProvider
 from roadmap.application.services.context_builder import EvidenceContextBuilder
@@ -27,6 +29,10 @@ from roadmap.application.services.llm_budget_manager import LLMBudgetManager
 from roadmap.application.services.rag_service import RAGService
 from roadmap.application.services.semantic_retrieval_service import SemanticRetrievalService
 from roadmap.application.use_cases.adapt_roadmap import AdaptRoadmapUseCase
+from roadmap.application.use_cases.auth_use_cases import (
+    AuthenticateUserUseCase,
+    RegisterUserUseCase,
+)
 from roadmap.application.use_cases.profile_use_cases import (
     CreateProfileUseCase,
     GetProfileUseCase,
@@ -41,7 +47,11 @@ from roadmap.application.use_cases.roadmap_use_cases import (
     GetRoadmapByVersionUseCase,
     ListRoadmapsUseCase,
 )
+from roadmap.domain.entities.user import User
+from roadmap.domain.entities.user_profile import UserProfile
+from roadmap.domain.exceptions import AuthenticationError
 from roadmap.infrastructure.vector_store.sqlite_vector_store import SqliteVectorStore
+from roadmap.security.tokens import InvalidTokenError, TokenExpiredError, decode_access_token
 from roadmap.storage.database import get_session_factory
 from roadmap.storage.repositories.adaptation_repository import SqliteAdaptationRepository
 from roadmap.storage.repositories.feedback_repository import SqliteFeedbackRepository
@@ -54,6 +64,9 @@ from roadmap.storage.repositories.research_repository import (
     SqliteSourceRepository,
 )
 from roadmap.storage.repositories.roadmap_repository import SqliteRoadmapRepository
+from roadmap.storage.repositories.user_repository import SqliteUserRepository
+
+http_bearer = HTTPBearer(auto_error=False)
 
 # ---------------------------------------------------------------------------
 # Session
@@ -118,6 +131,10 @@ def get_source_repo(session: Session = Depends(get_db_session)) -> SqliteSourceR
 
 def get_knowledge_repo(session: Session = Depends(get_db_session)) -> SqliteKnowledgeRepository:
     return SqliteKnowledgeRepository(session)
+
+
+def get_user_repo(session: Session = Depends(get_db_session)) -> SqliteUserRepository:
+    return SqliteUserRepository(session)
 
 
 # ---------------------------------------------------------------------------
@@ -263,4 +280,94 @@ def get_knowledge_indexing_service(
         knowledge_repo=SqliteKnowledgeRepository(session),
         embedding_provider=embedding_provider,
     )
+
+
+# ---------------------------------------------------------------------------
+# Authentication & Authorization providers (MVP-7.3)
+# ---------------------------------------------------------------------------
+
+def get_register_user_use_case(
+    user_repo: SqliteUserRepository = Depends(get_user_repo),
+) -> RegisterUserUseCase:
+    return RegisterUserUseCase(user_repo=user_repo)
+
+
+def get_authenticate_user_use_case(
+    user_repo: SqliteUserRepository = Depends(get_user_repo),
+) -> AuthenticateUserUseCase:
+    return AuthenticateUserUseCase(user_repo=user_repo)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(http_bearer),
+    user_repo: SqliteUserRepository = Depends(get_user_repo),
+) -> User:
+    """
+    Authenticate request using Bearer JWT.
+
+    Validates signature, algorithm, expiration, and user account status.
+    Raises 401 if missing, expired, invalid, or user inactive.
+    """
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": ErrorCode.AUTHENTICATION_REQUIRED, "message": "Authentication required."}},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = credentials.credentials
+    try:
+        payload = decode_access_token(token)
+    except TokenExpiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": ErrorCode.TOKEN_EXPIRED, "message": str(exc)}},
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    except (InvalidTokenError, AuthenticationError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": ErrorCode.INVALID_TOKEN, "message": str(exc)}},
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": ErrorCode.INVALID_TOKEN, "message": "Token subject is invalid."}},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = user_repo.get_by_id(user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": {"code": ErrorCode.INVALID_TOKEN, "message": "User not found or inactive."}},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
+
+
+def get_authorized_profile(
+    profile_id: str,
+    current_user: User = Depends(get_current_user),
+    profile_repo: SqliteProfileRepository = Depends(get_profile_repo),
+) -> UserProfile:
+    """
+    Authorize access to a profile resource.
+
+    Enforces ownership invariant: caller must own the requested profile.
+    Returns 404 RESOURCE_NOT_FOUND if profile does not exist OR belongs to another user
+    (discovery protection policy).
+    """
+    profile = profile_repo.load_by_id(profile_id)
+    if profile is None or profile.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": ErrorCode.RESOURCE_NOT_FOUND, "message": "Resource not found"}},
+        )
+    return profile
+
 

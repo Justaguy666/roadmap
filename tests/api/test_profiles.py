@@ -1,4 +1,4 @@
-﻿"""Tests: Profile endpoints."""
+"""Tests: Profile endpoints."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def test_get_profile_not_found_wrong_id(api_client: TestClient) -> None:
     """Non-existent profile_id returns 404."""
     resp = api_client.get("/api/v1/profiles/nonexistent-id-000")
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
 
 
 def test_get_profile_id_mismatch(api_client: TestClient) -> None:

@@ -24,10 +24,12 @@ from roadmap.storage.models.roadmap_model import (
     RoadmapPhaseModel,
 )
 from roadmap.storage.models.skill_model import SkillDependencyModel, SkillModel
+from roadmap.storage.models.user_model import UserModel
 from roadmap.storage.models.user_profile_model import UserProfileModel
 
 __all__ = [
     "Base",
+    "UserModel",
     "EmbeddingRecordModel",
     "EvidenceModel",
     "KnowledgeChunkModel",

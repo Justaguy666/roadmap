@@ -25,6 +25,7 @@ class UserProfile(BaseModel):
 
     # Identity
     id: str = Field(default_factory=new_id)
+    user_id: str = Field(default="", description="ID of the user who owns this profile")
     name: str = Field(min_length=1, max_length=100)
 
     # Goal

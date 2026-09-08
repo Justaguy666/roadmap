@@ -8,8 +8,9 @@ Production deployments must provide explicit values via environment.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Self
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -276,6 +277,36 @@ class Settings(BaseSettings):
             "Do NOT use ['*'] with allow_credentials=True."
         ),
     )
+
+    # ── Authentication (MVP-7.3) ──────────────────────────────────────────
+    auth_secret: str = Field(
+        default="dev-insecure-secret-key-change-in-production-min-32-chars",
+        validation_alias=AliasChoices("ROADMAP_AUTH_SECRET", "AUTH_SECRET"),
+        description="Secret key for signing JWT access tokens (min 32 characters in production)",
+    )
+    auth_algorithm: str = Field(
+        default="HS256",
+        validation_alias=AliasChoices("ROADMAP_AUTH_ALGORITHM", "AUTH_ALGORITHM"),
+        description="JWT signing algorithm",
+    )
+    auth_access_token_expire_minutes: int = Field(
+        default=60,
+        ge=1,
+        le=43200,
+        validation_alias=AliasChoices("ROADMAP_ACCESS_TOKEN_EXPIRE_MINUTES", "ACCESS_TOKEN_EXPIRE_MINUTES"),
+        description="Access token expiration in minutes",
+    )
+
+    @model_validator(mode="after")
+    def validate_production_auth_secret(self) -> Self:
+        if self.env == "production" and (
+            not self.auth_secret or len(self.auth_secret) < 32 or "dev-insecure" in self.auth_secret
+        ):
+            raise ValueError(
+                "Production configuration error: ROADMAP_AUTH_SECRET must be explicitly set "
+                "with a secure secret of at least 32 characters."
+            )
+        return self
 
     @field_validator("data_dir", mode="before")
     @classmethod

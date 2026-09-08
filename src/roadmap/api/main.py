@@ -43,7 +43,16 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from roadmap.api.middleware import RequestLoggingMiddleware
-from roadmap.api.routers import adaptations, feedback, health, knowledge, profiles, progress, roadmaps
+from roadmap.api.routers import (
+    adaptations,
+    auth,
+    feedback,
+    health,
+    knowledge,
+    profiles,
+    progress,
+    roadmaps,
+)
 from roadmap.application.ports.embedding_provider import EmbeddingProviderError
 from roadmap.application.ports.llm_provider import MissingAPIKeyError
 from roadmap.config.settings import settings
@@ -59,9 +68,12 @@ _API_DESCRIPTION = (
     "The API is a thin adapter layer over the existing Application Use Cases. "
     "All business logic (generation, validation, adaptation, knowledge retrieval) "
     "is implemented in the application layer and is shared with the CLI.\n\n"
-    "## Authentication\n"
-    "> **NOT YET IMPLEMENTED.** All endpoints are currently unauthenticated.\n"
-    "> Authentication will be added in MVP-7.3.\n\n"
+    "## Authentication & Authorization\n"
+    "Multi-user identity and authorization implemented (MVP-7.3).\n"
+    "- Register: `POST /api/v1/auth/register`\n"
+    "- Login: `POST /api/v1/auth/login`\n"
+    "- Current User: `GET /api/v1/auth/me`\n"
+    "All profile and roadmap resources are protected with Bearer JWT tokens.\n\n"
     "## Versioning\n"
     "All resource endpoints are prefixed with `/api/v1/`.\n"
 )
@@ -100,7 +112,7 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title=_API_TITLE,
     description=_API_DESCRIPTION,
-    version="7.2.0",
+    version="7.3.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -194,6 +206,7 @@ app.include_router(health.router)
 # Versioned resource routes
 prefix = settings.api_prefix
 
+app.include_router(auth.router, prefix=prefix)
 app.include_router(profiles.router, prefix=prefix)
 app.include_router(roadmaps.router, prefix=prefix)
 app.include_router(progress.router, prefix=prefix)

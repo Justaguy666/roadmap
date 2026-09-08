@@ -40,20 +40,29 @@ class CreateProfileRequest:
 
 
 class CreateProfileUseCase:
-    """Creates a new user profile. Raises if one already exists."""
+    """Creates a new user profile. Raises if one already exists for the user."""
 
     def __init__(self, profile_repo: ProfileRepository) -> None:
         self._repo = profile_repo
 
-    def execute(self, request: CreateProfileRequest, overwrite: bool = False) -> UserProfile:
-        if self._repo.exists() and not overwrite:
+    def execute(
+        self,
+        request: CreateProfileRequest,
+        user_id: str = "",
+        overwrite: bool = False,
+    ) -> UserProfile:
+        already_exists = (
+            self._repo.exists_for_user(user_id) if user_id else self._repo.exists()
+        )
+
+        if already_exists and not overwrite:
             raise ProfileAlreadyExistsError(
-                "A profile already exists. Use `roadmap profile --reset` to start over, "
-                "or `roadmap profile edit` to update it."
+                "A profile already exists for this user."
             )
 
         profile = UserProfile(
             id=new_id(),
+            user_id=user_id,
             name=request.name,
             target_goal=request.target_goal,
             target_role=request.target_role,
@@ -73,23 +82,33 @@ class CreateProfileUseCase:
         )
 
         self._repo.save(profile)
-        logger.info("Profile created", profile_id=profile.id, name=profile.name)
+        logger.info("Profile created", profile_id=profile.id, user_id=user_id, name=profile.name)
         return profile
 
 
 class GetProfileUseCase:
-    """Load the current profile. Raises if none exists."""
+    """Load a profile by ID and user ownership, or load current profile for CLI."""
 
     def __init__(self, profile_repo: ProfileRepository) -> None:
         self._repo = profile_repo
 
-    def execute(self) -> UserProfile:
-        profile = self._repo.load()
+    def execute(
+        self,
+        profile_id: str | None = None,
+        user_id: str | None = None,
+    ) -> UserProfile:
+        if profile_id:
+            if user_id:
+                profile = self._repo.load_for_user(user_id=user_id, profile_id=profile_id)
+            else:
+                profile = self._repo.load_by_id(profile_id)
+        else:
+            profile = self._repo.load()
+
         if profile is None:
-            raise ProfileNotFoundError(
-                "No profile found. Run `roadmap init` to create one."
-            )
+            raise ProfileNotFoundError("Profile not found.")
         return profile
+
 
 
 @dataclass

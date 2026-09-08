@@ -34,6 +34,9 @@ dependencies = [
     # API (MVP-7.2)
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
+    # Auth (MVP-7.3)
+    "pyjwt>=2.8.0",
+    "bcrypt>=4.1.0",
 ]
 
 [project.scripts]

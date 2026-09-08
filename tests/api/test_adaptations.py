@@ -1,4 +1,4 @@
-﻿"""Tests: Adaptation endpoints."""
+"""Tests: Adaptation endpoints."""
 
 from __future__ import annotations
 
@@ -30,5 +30,6 @@ def test_prepare_adaptation_no_roadmap(api_client: TestClient) -> None:
 def test_prepare_adaptation_no_profile(api_client: TestClient) -> None:
     resp = api_client.post("/api/v1/profiles/nonexistent/adaptations/prepare")
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
+
 

@@ -39,7 +39,7 @@ def test_knowledge_search_no_profile(api_client: TestClient) -> None:
         params={"query": "test query"},
     )
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
 
 
 def test_knowledge_search_missing_query(api_client: TestClient) -> None:

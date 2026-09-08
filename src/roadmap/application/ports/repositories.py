@@ -27,8 +27,25 @@ from roadmap.domain.entities import (
     Skill,
     SkillDependency,
     Source,
+    User,
     UserProfile,
 )
+
+
+class UserRepository(Protocol):
+    """Persistence port for user accounts."""
+
+    def save(self, user: User) -> None:
+        """Create or update a user."""
+        ...
+
+    def get_by_id(self, user_id: str) -> User | None:
+        """Load a user by unique identifier."""
+        ...
+
+    def get_by_email(self, email: str) -> User | None:
+        """Load a user by normalized email address."""
+        ...
 
 
 class ProfileRepository(Protocol):
@@ -39,15 +56,31 @@ class ProfileRepository(Protocol):
         ...
 
     def load(self) -> UserProfile | None:
-        """Load the current active profile (single-user MVP)."""
+        """Load the current active profile (single-user MVP / CLI compatibility)."""
         ...
 
-    def delete(self) -> None:
-        """Delete the current profile and all associated data."""
+    def load_by_id(self, profile_id: str) -> UserProfile | None:
+        """Load a profile by its ID."""
+        ...
+
+    def load_by_user_id(self, user_id: str) -> list[UserProfile]:
+        """Load all profiles owned by a specific user."""
+        ...
+
+    def load_for_user(self, user_id: str, profile_id: str) -> UserProfile | None:
+        """Load a specific profile owned by a specific user."""
+        ...
+
+    def delete(self, profile_id: str | None = None) -> None:
+        """Delete profile (or all profiles if profile_id is None)."""
         ...
 
     def exists(self) -> bool:
-        """Return True if a profile exists."""
+        """Return True if any profile exists."""
+        ...
+
+    def exists_for_user(self, user_id: str) -> bool:
+        """Return True if the given user already owns a profile."""
         ...
 
 

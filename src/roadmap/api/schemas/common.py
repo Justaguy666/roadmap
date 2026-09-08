@@ -1,4 +1,4 @@
-﻿"""
+"""
 Shared API response/error schemas for RoadmapAI.
 
 All error responses follow the structure:
@@ -50,6 +50,15 @@ class ErrorCode:
 
     # Provider
     PROVIDER_ERROR = "PROVIDER_ERROR"
+
+    # Auth & Identity (MVP-7.3)
+    AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
+    INVALID_TOKEN = "INVALID_TOKEN"
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    FORBIDDEN = "FORBIDDEN"
+    EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
+    RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
 
     # General
     BAD_REQUEST = "BAD_REQUEST"

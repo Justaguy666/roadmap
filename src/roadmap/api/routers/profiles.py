@@ -1,18 +1,23 @@
-﻿"""Profile endpoints: POST /api/v1/profiles, GET /api/v1/profiles/{profile_id}."""
+"""Profile endpoints: POST /api/v1/profiles, GET /api/v1/profiles/{profile_id}."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from roadmap.api.dependencies import get_create_profile_use_case, get_get_profile_use_case
+from roadmap.api.dependencies import (
+    get_authorized_profile,
+    get_create_profile_use_case,
+    get_current_user,
+)
+from roadmap.api.schemas.common import ErrorCode
 from roadmap.api.schemas.profiles import ProfileCreateRequest, ProfileResponse
 from roadmap.application.use_cases.profile_use_cases import (
     CreateProfileRequest,
     CreateProfileUseCase,
-    GetProfileUseCase,
 )
+from roadmap.domain.entities.user import User
 from roadmap.domain.entities.user_profile import UserProfile
-from roadmap.domain.exceptions import ProfileAlreadyExistsError, ProfileNotFoundError
+from roadmap.domain.exceptions import ProfileAlreadyExistsError
 
 router = APIRouter(prefix="/profiles", tags=["Profiles"])
 
@@ -47,20 +52,21 @@ def _profile_to_response(p: UserProfile) -> ProfileResponse:
     status_code=status.HTTP_201_CREATED,
     summary="Create a new user profile",
     description=(
-        "Creates a new user profile. "
-        "Returns 409 if a profile already exists (single-user system). "
-        "Authentication: NOT YET IMPLEMENTED (MVP-7.3)."
+        "Creates a new user profile bound to the authenticated user. "
+        "Returns 409 if a profile already exists for this user."
     ),
     responses={
+        401: {"description": "Authentication required"},
         409: {"description": "Profile already exists"},
         422: {"description": "Validation error"},
     },
 )
 def create_profile(
     body: ProfileCreateRequest,
+    current_user: User = Depends(get_current_user),
     use_case: CreateProfileUseCase = Depends(get_create_profile_use_case),
 ) -> ProfileResponse:
-    """Create a new user profile."""
+    """Create a new user profile for the authenticated user."""
     try:
         request = CreateProfileRequest(
             name=body.name,
@@ -80,12 +86,12 @@ def create_profile(
             study_hours_per_day=body.study_hours_per_day,
             deadline_months=body.deadline_months,
         )
-        profile = use_case.execute(request)
+        profile = use_case.execute(request, user_id=current_user.id)
         return _profile_to_response(profile)
     except ProfileAlreadyExistsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": {"code": "PROFILE_ALREADY_EXISTS", "message": str(exc)}},
+            detail={"error": {"code": ErrorCode.PROFILE_ALREADY_EXISTS, "message": str(exc)}},
         ) from exc
 
 
@@ -94,32 +100,17 @@ def create_profile(
     response_model=ProfileResponse,
     summary="Retrieve a user profile by ID",
     description=(
-        "Returns the user profile for the given profile_id. "
-        "Returns 404 if no profile exists or the ID does not match. "
-        "Authentication: NOT YET IMPLEMENTED (MVP-7.3)."
+        "Returns the user profile for the given profile_id if owned by caller. "
+        "Returns 404 if no profile exists or the profile belongs to another user."
     ),
     responses={
-        404: {"description": "Profile not found"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Resource not found"},
     },
 )
 def get_profile(
-    profile_id: str,
-    use_case: GetProfileUseCase = Depends(get_get_profile_use_case),
+    profile: UserProfile = Depends(get_authorized_profile),
 ) -> ProfileResponse:
-    """Retrieve profile by ID."""
-    try:
-        profile = use_case.execute()
-    except ProfileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "PROFILE_NOT_FOUND", "message": "Profile not found"}},
-        ) from exc
-
-    # Single-user system: verify the path ID matches the stored profile
-    if profile.id != profile_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "PROFILE_NOT_FOUND", "message": "Profile not found"}},
-        )
-
+    """Retrieve profile by ID (authorized for caller)."""
     return _profile_to_response(profile)
+

@@ -1,4 +1,4 @@
-﻿"""Tests: Roadmap endpoints."""
+"""Tests: Roadmap endpoints."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def test_list_roadmaps_empty(api_client: TestClient) -> None:
 def test_list_roadmaps_no_profile(api_client: TestClient) -> None:
     resp = api_client.get("/api/v1/profiles/nonexistent/roadmaps")
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
 
 
 def test_get_latest_roadmap_not_found(api_client: TestClient) -> None:

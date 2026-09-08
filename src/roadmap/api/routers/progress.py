@@ -5,20 +5,20 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from roadmap.api.dependencies import (
-    get_get_profile_use_case,
+    get_authorized_profile,
     get_list_progress_use_case,
     get_record_progress_use_case,
 )
+from roadmap.api.schemas.common import ErrorCode
 from roadmap.api.schemas.progress import ProgressCreateRequest, ProgressResponse
-from roadmap.application.use_cases.profile_use_cases import GetProfileUseCase
 from roadmap.application.use_cases.record_progress import (
     ListProgressUseCase,
     UpdateProgressUseCase,
 )
 from roadmap.domain.entities.progress_record import ProgressRecord
+from roadmap.domain.entities.user_profile import UserProfile
 from roadmap.domain.exceptions import (
     InvalidProgressError,
-    ProfileNotFoundError,
     RoadmapNotFoundError,
     SkillNotFoundError,
 )
@@ -45,34 +45,21 @@ def _progress_to_response(p: ProgressRecord) -> ProgressResponse:
     )
 
 
-def _resolve_profile(profile_id: str, profile_uc: GetProfileUseCase) -> None:
-    try:
-        profile = profile_uc.execute()
-    except ProfileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "PROFILE_NOT_FOUND", "message": "Profile not found"}},
-        ) from exc
-    if profile.id != profile_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "PROFILE_NOT_FOUND", "message": "Profile not found"}},
-        )
-
-
 @router.get(
     "/profiles/{profile_id}/progress",
     response_model=list[ProgressResponse],
     summary="List all progress records for a profile",
     description="Returns all progress records for the profile.",
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Resource not found"},
+    },
 )
 def list_progress(
-    profile_id: str,
-    profile_uc: GetProfileUseCase = Depends(get_get_profile_use_case),
+    profile: UserProfile = Depends(get_authorized_profile),
     use_case: ListProgressUseCase = Depends(get_list_progress_use_case),
 ) -> list[ProgressResponse]:
-    _resolve_profile(profile_id, profile_uc)
-    records = use_case.execute(profile_id)
+    records = use_case.execute(profile.id)
     return [_progress_to_response(r) for r in records]
 
 
@@ -88,19 +75,18 @@ def list_progress(
     ),
     responses={
         400: {"description": "Invalid progress or skill not found"},
+        401: {"description": "Authentication required"},
         404: {"description": "Profile or roadmap not found"},
     },
 )
 def record_progress(
-    profile_id: str,
     body: ProgressCreateRequest,
-    profile_uc: GetProfileUseCase = Depends(get_get_profile_use_case),
+    profile: UserProfile = Depends(get_authorized_profile),
     use_case: UpdateProgressUseCase = Depends(get_record_progress_use_case),
 ) -> ProgressResponse:
-    _resolve_profile(profile_id, profile_uc)
     try:
         result = use_case.execute(
-            profile_id=profile_id,
+            profile_id=profile.id,
             skill_identifier=body.skill_name,
             percentage=body.completion_percentage,
             actual_hours=body.actual_hours,
@@ -113,19 +99,20 @@ def record_progress(
         if "roadmap" in msg.lower() or isinstance(exc, RoadmapNotFoundError):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail={"error": {"code": "ROADMAP_NOT_FOUND", "message": "No roadmap found for this profile"}},
+                detail={"error": {"code": ErrorCode.ROADMAP_NOT_FOUND, "message": "No roadmap found for this profile"}},
             ) from exc
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": {"code": "BAD_REQUEST", "message": msg}},
+            detail={"error": {"code": ErrorCode.BAD_REQUEST, "message": msg}},
         ) from exc
     except SkillNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": {"code": "SKILL_NOT_FOUND", "message": str(exc)}},
+            detail={"error": {"code": ErrorCode.SKILL_NOT_FOUND, "message": str(exc)}},
         ) from exc
     except InvalidProgressError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": {"code": "INVALID_PROGRESS", "message": str(exc)}},
+            detail={"error": {"code": ErrorCode.INVALID_PROGRESS, "message": str(exc)}},
         ) from exc
+

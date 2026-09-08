@@ -68,3 +68,24 @@ class RoadmapValidationError(RoadmapDomainError):
         self.errors = errors
         formatted = "; ".join(errors)
         super().__init__(f"Roadmap failed validation: {formatted}")
+
+
+class UserNotFoundError(RoadmapDomainError):
+    """Raised when a user cannot be found."""
+
+
+class UserAlreadyExistsError(RoadmapDomainError):
+    """Raised when a user with the same email already exists."""
+
+
+class InvalidCredentialsError(RoadmapDomainError):
+    """Raised when login credentials do not match."""
+
+
+class AuthenticationError(RoadmapDomainError):
+    """Raised when authentication token or credentials cannot be validated."""
+
+
+class UnauthorizedError(RoadmapDomainError):
+    """Raised when access to a resource is denied."""
+

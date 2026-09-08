@@ -31,9 +31,17 @@ from roadmap.domain.entities.progress_record import ProgressRecord
 from roadmap.domain.entities.roadmap import Milestone, Roadmap, RoadmapPhase
 from roadmap.domain.entities.skill import Skill, SkillDependency, SkillNode
 from roadmap.domain.entities.source import Evidence, Recommendation, ResearchRun, Source
+from roadmap.domain.entities.user import (
+    LEGACY_LOCAL_USER_EMAIL,
+    LEGACY_LOCAL_USER_ID,
+    User,
+)
 from roadmap.domain.entities.user_profile import UserProfile
 
 __all__ = [
+    "User",
+    "LEGACY_LOCAL_USER_ID",
+    "LEGACY_LOCAL_USER_EMAIL",
     "BudgetAllocation",
     "Competency",
     "DocumentStatus",

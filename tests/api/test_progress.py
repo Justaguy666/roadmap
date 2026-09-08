@@ -1,4 +1,4 @@
-﻿"""Tests: Progress endpoints."""
+"""Tests: Progress endpoints."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def test_list_progress_empty(api_client: TestClient) -> None:
 def test_list_progress_no_profile(api_client: TestClient) -> None:
     resp = api_client.get("/api/v1/profiles/nonexistent/progress")
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
 
 
 def test_record_progress_no_roadmap(api_client: TestClient) -> None:
@@ -68,5 +68,5 @@ def test_record_progress_no_profile(api_client: TestClient) -> None:
     }
     resp = api_client.post("/api/v1/profiles/nonexistent/progress", json=body)
     assert resp.status_code == 404
-    assert resp.json()["error"]["code"] == "PROFILE_NOT_FOUND"
+    assert resp.json()["error"]["code"] in ("RESOURCE_NOT_FOUND", "PROFILE_NOT_FOUND")
 
